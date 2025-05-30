@@ -1,4 +1,6 @@
 import { Players, UserInputService, RunService } from "@rbxts/services";
+import Remotes from "shared/remotes/player";
+import { vector3ToDirection } from "shared/utils/convert";
 
 const player = Players.LocalPlayer;
 const character = player.Character || player.CharacterAdded.Wait()[0];
@@ -11,6 +13,9 @@ humanoid.JumpPower = 0;
 humanoid.JumpHeight = 0;
 humanoid.AutoJumpEnabled = false;
 humanoid.AutoRotate = false;
+
+const actions = Remotes.Client.GetNamespace('Actions');
+const playerAttack = actions.Get('PlayerAttack');
 
 const keyDirectionMap: Record<string, Vector3> = {
     w: new Vector3(0, 0, -1),
@@ -31,7 +36,9 @@ function onInputBegan(input: InputObject, processed: boolean) {
     if (keyDirectionMap[key]) {
         heldKeys.add(key);
     }
-
+    if (input.KeyCode === Enum.KeyCode.Space) {
+        playerAttack.SendToServer(rootPart.Position, vector3ToDirection(rootPart.CFrame.LookVector));
+    }
 }
 
 function onInputEnded(input: InputObject) {
