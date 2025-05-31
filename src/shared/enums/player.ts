@@ -1,24 +1,25 @@
 export enum PlayerState {
-    Idle,
-    Moving,
-    Attacking,
-    Dead,
+	Moving,
+	Attacking,
+	Dead,
+	Respawning,
+	None,
 }
 
 export enum PlayerGameState {
-    Lobby,
-    Voting,
-    Playing,
+	Lobby,
+	Voting,
+	Playing,
 }
 
 export enum PlayerDirection {
-    Up,
-    Down,
-    Left,
-    Right,
-    UpLeft,
-    UpRight,
-    DownLeft,
-    DownRight,
-    None,
+	Up,
+	Down,
+	Left,
+	Right,
+	UpLeft,
+	UpRight,
+	DownLeft,
+	DownRight,
+	None,
 }

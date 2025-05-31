@@ -1,11 +1,13 @@
 export enum GameState {
-    Waiting,
-    Voting,
-    Playing,
-    Ended,
+	WaitingForPlayers,
+	Lobby,
+	VotingMap,
+	VotingMode,
+	Playing,
+	Ended,
 }
 
 export enum GameMode {
-    Normal,
-    Hardcore,
+	Normal,
+	Hardcore,
 }

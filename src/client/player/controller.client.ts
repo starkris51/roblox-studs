@@ -1,1 +1,0 @@
-print("Player controller initialized");
