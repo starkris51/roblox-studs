@@ -1,4 +1,5 @@
 import Net, { Definitions } from "@rbxts/net";
+import { MapType } from "shared/enums/grid";
 
 const Remotes = Net.CreateDefinitions({
 	Updates: Definitions.Namespace({
@@ -8,8 +9,9 @@ const Remotes = Net.CreateDefinitions({
 
 	Game: Definitions.Namespace({
 		Start: Definitions.ServerToClientEvent<[]>(),
-		VoteMapSession: Definitions.ServerToClientEvent<[mapName: string]>(),
-		VoteGameModeSession: Definitions.ServerToClientEvent<[gameMode: string]>(),
+		VoteMapSession: Definitions.ServerToClientEvent<[maps: MapType[]]>(),
+		EndVoteMapSession: Definitions.ServerToClientEvent<[]>(),
+		VoteGameModeSession: Definitions.ServerToClientEvent<[]>(),
 		End: Definitions.ServerToClientEvent<[]>(),
 		PlayerJoined: Definitions.ServerToClientEvent<[playerName: string]>(),
 		PlayerLeft: Definitions.ServerToClientEvent<[playerName: string]>(),

@@ -11,15 +11,3 @@ export enum PlayerGameState {
 	Voting,
 	Playing,
 }
-
-export enum PlayerDirection {
-	Up,
-	Down,
-	Left,
-	Right,
-	UpLeft,
-	UpRight,
-	DownLeft,
-	DownRight,
-	None,
-}

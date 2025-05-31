@@ -3,6 +3,7 @@ import { PlayerGameState, PlayerState } from "shared/enums/player";
 export class GamePlayer {
 	private player: Player;
 	private score: number;
+	private color: Color3;
 	private gameState: PlayerGameState;
 	private playerState: PlayerState;
 
@@ -11,6 +12,7 @@ export class GamePlayer {
 		this.score = 0;
 		this.gameState = PlayerGameState.Lobby;
 		this.playerState = PlayerState.None;
+		this.color = new Color3(math.random(), math.random(), math.random());
 	}
 
 	public getPlayer(): Player {
@@ -25,6 +27,9 @@ export class GamePlayer {
 	public getPlayerState(): PlayerState {
 		return this.playerState;
 	}
+	public getColor(): Color3 {
+		return this.color;
+	}
 	public setScore(score: number): void {
 		this.score = score;
 	}
@@ -33,5 +38,8 @@ export class GamePlayer {
 	}
 	public setPlayerState(state: PlayerState): void {
 		this.playerState = state;
+	}
+	public setColor(color: Color3): void {
+		this.color = color;
 	}
 }

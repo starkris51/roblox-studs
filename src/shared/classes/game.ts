@@ -13,8 +13,8 @@ export class GameManager {
 	private state: GameState;
 	private mode: GameMode;
 	private players: GamePlayer[];
-	private map: string;
-	private mapVotes: Record<string, number>;
+	private map: MapType;
+	private mapVotes: Record<MapType, number>;
 	private modeVotes: Record<GameMode, number>;
 	private timer: number = 0;
 	private timerConnection?: RBXScriptConnection;
@@ -24,17 +24,32 @@ export class GameManager {
 	private playerActions = PlayerRemotes.Server.GetNamespace("Actions");
 	private playerAttack = this.playerActions.Get("PlayerAttack");
 
+	// Remotes for player voting
+	private playerVote = PlayerRemotes.Server.GetNamespace("Voting");
+	private playerVoteMap = this.playerVote.Get("VoteMap");
+	private playerUnVoteMap = this.playerVote.Get("UnvoteMap");
+	private playerVoteMode = this.playerVote.Get("VoteGameMode");
+
 	// Remotes for camera
 	private playerCamera = ServerRemotes.Server.GetNamespace("Camera");
 	private cameraToMap = this.playerCamera.Get("CameraToMap");
 	private cameraToLobby = this.playerCamera.Get("CameraToLobby");
 
+	// Remotes for game management
+	private game = ServerRemotes.Server.GetNamespace("Game");
+	private voteMapSession = this.game.Get("VoteMapSession");
+	private endVoteMapSession = this.game.Get("EndVoteMapSession");
+
 	constructor() {
 		this.state = GameState.WaitingForPlayers;
 		this.mode = GameMode.Normal;
 		this.players = [];
-		this.map = "";
-		this.mapVotes = {};
+		this.map = MapType.Normal;
+		this.mapVotes = {
+			[MapType.Normal]: 0,
+			[MapType.Large]: 0,
+			[MapType.Randomized]: 0,
+		};
 		this.modeVotes = {
 			[GameMode.Normal]: 0,
 			[GameMode.Hardcore]: 0,
@@ -42,6 +57,9 @@ export class GameManager {
 		this.grid = undefined;
 
 		this.playerAttack.Connect(this.handlePlayerAttack);
+		this.playerVoteMap.Connect(this.handlePlayerVoteMap);
+		this.playerUnVoteMap.Connect(this.handlePlayerUnVoteMap);
+		//this.playerVoteMode.Connect(this.handlePlayerVoteMode);
 	}
 
 	public playerJoin(player: Player): void {
@@ -78,18 +96,18 @@ export class GameManager {
 
 	private startVoting() {
 		this.state = GameState.VotingMap;
-		this.timer = 0;
+		this.timer = 10;
 
-		//no ui for voting yet, so we just set a default map
-		this.map = "normal";
-		this.mapVotes[this.map] = 0;
+		const maps = [MapType.Normal, MapType.Large, MapType.Randomized];
 
-		print("Starting map voting...");
+		this.voteMapSession.SendToAllPlayers(maps);
 
 		this.startTimer(() => this.startGame());
 	}
 
 	private startGame() {
+		this.endVoteMapSession.SendToAllPlayers();
+
 		this.state = GameState.Playing;
 		this.timer = 60;
 
@@ -97,6 +115,34 @@ export class GameManager {
 			tileSize: 5,
 			tileColor: new Color3(1, 0, 0),
 		};
+
+		const mostVotedMap = this.getMostVotedMap();
+
+		let width: number;
+		let height: number;
+
+		switch (mostVotedMap) {
+			case MapType.Normal:
+				this.map = MapType.Normal;
+				width = 5;
+				height = 5;
+				break;
+			case MapType.Large:
+				this.map = MapType.Large;
+				width = 30;
+				height = 30;
+				break;
+			case MapType.Randomized:
+				this.map = MapType.Randomized;
+				width = math.random(20, 30);
+				height = math.random(20, 30);
+				tileConfig.tileColor = new Color3(math.random(), math.random(), math.random());
+				tileConfig.tileSize = math.random(3, 7);
+				break;
+			default:
+				this.map = MapType.Normal;
+				break;
+		}
 
 		this.grid = new Grid(20, 20, tileConfig, MapType.Normal, this.OnTileFall);
 
@@ -146,8 +192,18 @@ export class GameManager {
 		const respawnLocation = this.grid.getRandomSpawnLocation();
 
 		player.setPlayerState(PlayerState.Moving);
-		player.getPlayer().LoadCharacter();
-		player.getPlayer().Character?.MoveTo(respawnLocation);
+		const character = player.getPlayer().Character;
+		if (character && character.PrimaryPart) {
+			character.MoveTo(respawnLocation);
+		} else {
+			player.getPlayer().LoadCharacter();
+			const newCharacter = player.getPlayer().Character;
+			if (newCharacter && newCharacter.PrimaryPart) {
+				newCharacter.MoveTo(respawnLocation);
+			} else {
+				warn(`Failed to respawn player ${player.getPlayer().Name}. Character not found.`);
+			}
+		}
 	}
 
 	private handlePlayerAttack = (player: Player, position: Vector3, direction: Vector3) => {
@@ -249,4 +305,57 @@ export class GameManager {
 			warn(`Error processing tile fall for tile at position (${tile.position.x}, ${tile.position.y}): ${error}`);
 		}
 	};
+
+	private handlePlayerVoteMap = (player: Player, mapName: MapType) => {
+		if (this.state !== GameState.VotingMap) {
+			warn(`Player ${player.Name} tried to vote for map ${mapName} but voting is not active.`);
+			return;
+		}
+
+		if (!this.mapVotes[mapName]) {
+			this.mapVotes[mapName] = 0;
+		}
+
+		this.mapVotes[mapName] += 1;
+	};
+
+	private handlePlayerUnVoteMap = (player: Player, mapName: MapType) => {
+		if (this.state !== GameState.VotingMap) {
+			warn(`Player ${player.Name} tried to unvote for map ${mapName} but voting is not active.`);
+			return;
+		}
+
+		if (this.mapVotes[mapName]) {
+			this.mapVotes[mapName] -= 1;
+			if (this.mapVotes[mapName] <= 0) {
+				delete this.mapVotes[mapName];
+			}
+		}
+	};
+
+	private handlePlayerVoteMode = (player: Player, mode: GameMode) => {
+		if (this.state !== GameState.VotingMap) {
+			warn(`Player ${player.Name} tried to vote for mode ${mode} but voting is not active.`);
+			return;
+		}
+
+		if (!this.modeVotes[mode]) {
+			this.modeVotes[mode] = 0;
+		}
+		this.modeVotes[mode] += 1;
+	};
+
+	private getMostVotedMap(): MapType {
+		let maxVotes = 0;
+		let mostVotedMap: MapType = MapType.Normal;
+
+		for (const [map, votes] of pairs(this.mapVotes)) {
+			if (votes > maxVotes) {
+				maxVotes = votes;
+				mostVotedMap = map;
+			}
+		}
+
+		return mostVotedMap;
+	}
 }
