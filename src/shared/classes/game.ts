@@ -4,6 +4,7 @@ import { PlayerGameState, PlayerState } from "shared/enums/player";
 import { Players, RunService } from "@rbxts/services";
 import { Grid } from "./grid";
 import PlayerRemotes from "shared/remotes/player";
+import ServerRemotes from "shared/remotes/server";
 import { flipDirection, vector3ToTilePosition } from "shared/utils/convert";
 import { GridPosition, Tile } from "shared/types/grid";
 import { MapType } from "shared/enums/grid";
@@ -22,6 +23,11 @@ export class GameManager {
 	// Remotes for player actions
 	private playerActions = PlayerRemotes.Server.GetNamespace("Actions");
 	private playerAttack = this.playerActions.Get("PlayerAttack");
+
+	// Remotes for camera
+	private playerCamera = ServerRemotes.Server.GetNamespace("Camera");
+	private cameraToMap = this.playerCamera.Get("CameraToMap");
+	private cameraToLobby = this.playerCamera.Get("CameraToLobby");
 
 	constructor() {
 		this.state = GameState.WaitingForPlayers;
@@ -92,7 +98,19 @@ export class GameManager {
 			tileColor: new Color3(1, 0, 0),
 		};
 
-		this.grid = new Grid(10, 10, tileConfig, MapType.Normal, this.OnTileFall);
+		this.grid = new Grid(20, 20, tileConfig, MapType.Normal, this.OnTileFall);
+
+		const center = new Vector3(
+			(this.grid!.getWidth() * this.grid!.getConfig()!.tileSize) / 2,
+			30,
+			(this.grid!.getHeight() * this.grid!.getConfig()!.tileSize) / 2,
+		);
+		const cameraPosition = center.add(new Vector3(0, 0, 70));
+		const lookAtPosition = center.add(new Vector3(0, -30, -10));
+
+		const CFrameCamera = new CFrame(cameraPosition, lookAtPosition);
+
+		this.cameraToMap.SendToAllPlayers(CFrameCamera);
 
 		for (const player of this.players) {
 			player.setGameState(PlayerGameState.Playing);

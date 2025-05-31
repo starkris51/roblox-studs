@@ -1,5 +1,4 @@
 import Net, { Definitions } from "@rbxts/net";
-import { GridPosition } from "shared/types/grid";
 
 const Remotes = Net.CreateDefinitions({
 	Updates: Definitions.Namespace({
@@ -14,6 +13,11 @@ const Remotes = Net.CreateDefinitions({
 		End: Definitions.ServerToClientEvent<[]>(),
 		PlayerJoined: Definitions.ServerToClientEvent<[playerName: string]>(),
 		PlayerLeft: Definitions.ServerToClientEvent<[playerName: string]>(),
+	}),
+
+	Camera: Definitions.Namespace({
+		CameraToMap: Definitions.ServerToClientEvent<[position: CFrame]>(),
+		CameraToLobby: Definitions.ServerToClientEvent<[position: CFrame]>(),
 	}),
 });
 
