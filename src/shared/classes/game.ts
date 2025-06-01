@@ -13,6 +13,9 @@ export class GameManager {
 	private state: GameState;
 	private mode: GameMode;
 	private players: GamePlayer[];
+	private playersInLobby: GamePlayer[] = [];
+	private playersReady: GamePlayer[] = [];
+	private playersInGame: GamePlayer[] = [];
 	private map: MapType;
 	private mapVotes: Record<MapType, number>;
 	private modeVotes: Record<GameMode, number>;
@@ -106,6 +109,8 @@ export class GameManager {
 		this.state = GameState.VotingMap;
 		this.timer = 10;
 
+		this.resetVotes();
+
 		const maps = [MapType.Normal, MapType.Large, MapType.Randomized];
 
 		this.voteMapSession.SendToAllPlayers(maps);
@@ -171,13 +176,11 @@ export class GameManager {
 			player.setHealth(5);
 			this.respawnPlayer(player);
 		}
-
-		this.startTimer(() => this.endGame());
 	}
 
 	private endGame() {
 		this.state = GameState.Ended;
-		this.timer = 2;
+		this.timer = 10;
 
 		this.grid?.reset();
 
@@ -284,7 +287,7 @@ export class GameManager {
 		return positions;
 	}
 
-	private handlePlayerRespawn = (player: GamePlayer) => {
+	private losePlayerHealth = (player: GamePlayer) => {
 		this.timer = 2;
 
 		if (player.getPlayerState() === PlayerState.Respawning) {
@@ -301,12 +304,11 @@ export class GameManager {
 
 		player.setHealth(health--);
 
-		// if (health <= 0) {
-		// 	player.setPlayerState(PlayerState.Dead);
-		// 	player.setGameState(PlayerGameState.Lobby);
-		// 	//this.cameraToLobby.SendToPlayer(player.getPlayer(), new CFrame(0, 50, 0));
-		// 	return;
-		// }
+		if (health <= 0) {
+			player.setPlayerState(PlayerState.Dead);
+			player.setGameState(PlayerGameState.Lobby);
+			return;
+		}
 
 		player.setPlayerState(PlayerState.Respawning);
 
@@ -334,7 +336,7 @@ export class GameManager {
 					}
 					const player = this.getPlayer(robloxPlayer);
 					if (player && player.getPlayerState() === PlayerState.Moving) {
-						this.handlePlayerRespawn(player);
+						this.losePlayerHealth(player);
 					}
 				}
 			}
@@ -342,6 +344,14 @@ export class GameManager {
 			warn(`Error processing tile fall for tile at position (${tile.position.x}, ${tile.position.y}): ${error}`);
 		}
 	};
+
+	private resetVotes() {
+		this.mapVotes = {
+			[MapType.Normal]: 0,
+			[MapType.Large]: 0,
+			[MapType.Randomized]: 0,
+		};
+	}
 
 	private handlePlayerVoteMap = (player: Player, mapName: MapType) => {
 		if (this.state !== GameState.VotingMap) {
@@ -370,17 +380,17 @@ export class GameManager {
 		}
 	};
 
-	private handlePlayerVoteMode = (player: Player, mode: GameMode) => {
-		if (this.state !== GameState.VotingMap) {
-			warn(`Player ${player.Name} tried to vote for mode ${mode} but voting is not active.`);
-			return;
-		}
+	// private handlePlayerVoteMode = (player: Player, mode: GameMode) => {
+	// 	if (this.state !== GameState.VotingMap) {
+	// 		warn(`Player ${player.Name} tried to vote for mode ${mode} but voting is not active.`);
+	// 		return;
+	// 	}
 
-		if (!this.modeVotes[mode]) {
-			this.modeVotes[mode] = 0;
-		}
-		this.modeVotes[mode] += 1;
-	};
+	// 	if (!this.modeVotes[mode]) {
+	// 		this.modeVotes[mode] = 0;
+	// 	}
+	// 	this.modeVotes[mode] += 1;
+	// };
 
 	private getMostVotedMap(): MapType {
 		let maxVotes = 0;

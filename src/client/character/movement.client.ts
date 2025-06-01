@@ -1,4 +1,6 @@
 import { Players, UserInputService, RunService } from "@rbxts/services";
+import PlayerAnimations from "shared/assets/animations/player";
+import { AnimationController } from "shared/classes/animation";
 import Remotes from "shared/remotes/player";
 
 const player = Players.LocalPlayer;
@@ -6,10 +8,7 @@ const character = player.Character || player.CharacterAdded.Wait()[0];
 const humanoid = character.WaitForChild("Humanoid") as Humanoid;
 const rootPart = character.WaitForChild("HumanoidRootPart") as BasePart;
 const animator = humanoid.WaitForChild("Animator") as Animator;
-
-const attackAnimation = new Instance("Animation");
-attackAnimation.AnimationId = "rbxassetid://84710608090562";
-const attackAnimationTrack = animator.LoadAnimation(attackAnimation);
+const animationController = new AnimationController(animator);
 
 const MOVE_SPEED = 16;
 
@@ -48,10 +47,10 @@ function onInputBegan(input: InputObject, processed: boolean) {
 	if (input.KeyCode === Enum.KeyCode.Space && !isAttacking) {
 		isAttacking = true;
 		humanoid.WalkSpeed = 0; // Stop movement during attack
-		attackAnimationTrack.Play();
-		attackAnimationTrack.Stopped.Once(() => {
+		const attackTrack = animationController.play("Attack");
+		attackTrack.Stopped.Once(() => {
 			isAttacking = false;
-			humanoid.WalkSpeed = MOVE_SPEED; // Resume movement after attack
+			humanoid.WalkSpeed = MOVE_SPEED;
 		});
 		wait(0.55); // Wait for the kick animation to finish
 		playerAttack.SendToServer(rootPart.Position, new Vector3(currentDirection.X, 0, currentDirection.Z));

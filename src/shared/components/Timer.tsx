@@ -9,7 +9,7 @@ export = (props: TimerProps) => {
         <screengui ResetOnSpawn={false} IgnoreGuiInset={true}>
             <frame
                 Size={new UDim2(0.2, 0, 0.1, 0)}
-                Position={new UDim2(0.4, 0, 0.45, 0)}
+                Position={new UDim2(0, 0, 0.45, 0)}
                 BackgroundColor3={Color3.fromRGB(30, 30, 30)}
                 BorderSizePixel={0}
             >

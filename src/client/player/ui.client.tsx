@@ -1,10 +1,10 @@
 import Roact from "@rbxts/roact";
-import MapVote from "client/ui/MapVote";
+import MapVote from "shared/components/MapVote";
 import ServerRemotes from "shared/remotes/server";
 import PlayerRemotes from "shared/remotes/player";
 import { Players } from "@rbxts/services";
 import { MapType } from "shared/enums/grid";
-import Timer = require("client/ui/Timer");
+import Timer = require("shared/components/Timer");
 
 let mapVoteHandle: Roact.Tree | undefined;
 

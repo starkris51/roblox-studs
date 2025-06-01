@@ -10,6 +10,7 @@ export class Grid {
 	private tiles: Tile[][];
 	private config: TilePartConfig;
 	private map: MapType;
+	private collisionBlocks: Part[] = [];
 	private onTileFell: (tile: Tile) => void;
 
 	constructor(width: number, height: number, config: TilePartConfig, map: MapType, onTileFell: (tile: Tile) => void) {
@@ -153,6 +154,11 @@ export class Grid {
 				tile.state = TileState.Active;
 			}
 		}
+
+		for (const block of this.collisionBlocks) {
+			block.Destroy();
+		}
+		this.collisionBlocks = [];
 	}
 
 	public getRandomSpawnLocation(): Vector3 {
@@ -217,6 +223,8 @@ export class Grid {
 		block.Position = new Vector3(basePos.X, basePos.Y + tileSize, basePos.Z); // 1 block higher
 		block.Transparency = 1; // Make it invisible
 		block.Parent = Workspace;
+
+		this.collisionBlocks.push(block);
 
 		return block;
 	}

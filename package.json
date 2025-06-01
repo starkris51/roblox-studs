@@ -25,6 +25,7 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@rbxts/animation": "^2.1.0",
     "@rbxts/net": "^3.0.10",
     "@rbxts/roact": "^3.0.1",
     "@rbxts/services": "^1.5.5",

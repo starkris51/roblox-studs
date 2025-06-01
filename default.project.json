@@ -30,9 +30,6 @@
 				"$className": "StarterPlayerScripts",
 				"TS": {
 					"$path": "out/client/player"
-				},
-				"UI": {
-					"$path": "out/client/ui"
 				}
 			},
 			"StarterCharacterScripts": {

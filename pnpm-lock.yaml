@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@rbxts/animation':
+        specifier: ^2.1.0
+        version: 2.1.0
       '@rbxts/net':
         specifier: ^3.0.10
         version: 3.0.10
@@ -130,6 +133,9 @@ packages:
   '@pkgr/core@0.2.4':
     resolution: {integrity: sha512-ROFF39F6ZrnzSUEmQQZUar0Jt4xVoP9WnDRdWwF4NNcXs3xBTLgBUDoOwW141y1jP+S8nahIbdxbFC7IShw9Iw==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
+
+  '@rbxts/animation@2.1.0':
+    resolution: {integrity: sha512-IgWgPGVV8oFT78SLdGCY4fRj5SkChJb3O2Wkpyb+/50LwKwjA+p3HOZgGOdPMKKNWKiaCtlyiUJEs8p2tjZRFA==}
 
   '@rbxts/compiler-types@3.0.0-types.0':
     resolution: {integrity: sha512-VGOHJPoL7+56NTatMGqQj3K7xWuzEV+aP4QD5vZiHu+bcff3kiTmtoadaF6NkJrmwfFAvbsd4Dg764ZjWNceag==}
@@ -907,6 +913,8 @@ snapshots:
       fastq: 1.19.1
 
   '@pkgr/core@0.2.4': {}
+
+  '@rbxts/animation@2.1.0': {}
 
   '@rbxts/compiler-types@3.0.0-types.0': {}
 
