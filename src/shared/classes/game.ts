@@ -19,6 +19,7 @@ export class GameManager {
 	private timer: number = 0;
 	private timerConnection?: RBXScriptConnection;
 	private grid?: Grid;
+	private cameraLocation: CFrame;
 
 	// Remotes for player actions
 	private playerActions = PlayerRemotes.Server.GetNamespace("Actions");
@@ -40,6 +41,12 @@ export class GameManager {
 	private voteMapSession = this.game.Get("VoteMapSession");
 	private endVoteMapSession = this.game.Get("EndVoteMapSession");
 
+	// Remotes for game timer
+	private timerRemotes = ServerRemotes.Server.GetNamespace("Timer");
+	private startTimerRemote = this.timerRemotes.Get("Start");
+	private tickTimerRemote = this.timerRemotes.Get("Tick");
+	private endTimerRemote = this.timerRemotes.Get("End");
+
 	constructor() {
 		this.state = GameState.WaitingForPlayers;
 		this.mode = GameMode.Normal;
@@ -55,6 +62,7 @@ export class GameManager {
 			[GameMode.Hardcore]: 0,
 		};
 		this.grid = undefined;
+		this.cameraLocation = new CFrame(0, 50, 0);
 
 		this.playerAttack.Connect(this.handlePlayerAttack);
 		this.playerVoteMap.Connect(this.handlePlayerVoteMap);
@@ -109,7 +117,7 @@ export class GameManager {
 		this.endVoteMapSession.SendToAllPlayers();
 
 		this.state = GameState.Playing;
-		this.timer = 60;
+		this.timer = 10;
 
 		const tileConfig = {
 			tileSize: 5,
@@ -156,7 +164,7 @@ export class GameManager {
 
 		const CFrameCamera = new CFrame(cameraPosition, lookAtPosition);
 
-		this.cameraToMap.SendToAllPlayers(CFrameCamera);
+		this.cameraLocation = CFrameCamera;
 
 		for (const player of this.players) {
 			player.setGameState(PlayerGameState.Playing);
@@ -164,22 +172,35 @@ export class GameManager {
 			this.respawnPlayer(player);
 		}
 
-		print(`Starting game with map: ${this.map} and mode: ${this.mode}`);
+		this.startTimer(() => this.endGame());
 	}
 
 	private endGame() {
 		this.state = GameState.Ended;
-		this.timer = 10;
+		this.timer = 2;
+
+		this.grid?.reset();
+
+		for (const player of this.players) {
+			player.setGameState(PlayerGameState.Lobby);
+			player.setPlayerState(PlayerState.None);
+			player.setHealth(0);
+			player.getPlayer().Character?.Destroy();
+		}
+
 		this.startTimer(() => this.startLobby());
 	}
 
 	private startTimer(onEnd: () => void) {
 		this.timerConnection?.Disconnect();
+		this.startTimerRemote.SendToAllPlayers(this.timer);
 		this.timerConnection = RunService.Heartbeat.Connect(() => {
 			const [dt] = RunService.Heartbeat.Wait();
 			this.timer -= dt;
+			this.tickTimerRemote.SendToAllPlayers(math.max(0, math.floor(this.timer)));
 			if (this.timer <= 0) {
 				this.timerConnection?.Disconnect();
+				this.endTimerRemote.SendToAllPlayers();
 				onEnd();
 			}
 		});
@@ -205,6 +226,8 @@ export class GameManager {
 				warn(`Failed to respawn player ${player.getPlayer().Name}. Character not found.`);
 			}
 		}
+
+		this.cameraToMap.SendToPlayer(player.getPlayer(), this.cameraLocation);
 	}
 
 	private handlePlayerAttack = (player: Player, position: Vector3, direction: Vector3) => {
@@ -272,16 +295,18 @@ export class GameManager {
 			throw error("Grid is not initialized.");
 		}
 
+		player.getPlayer().Character?.Destroy();
+
 		let health = player.getHealth();
 
 		player.setHealth(health--);
 
-		if (health <= 0) {
-			player.setPlayerState(PlayerState.Dead);
-			player.setGameState(PlayerGameState.Lobby);
-			this.cameraToLobby.SendToPlayer(player.getPlayer(), new CFrame(0, 50, 0));
-			return;
-		}
+		// if (health <= 0) {
+		// 	player.setPlayerState(PlayerState.Dead);
+		// 	player.setGameState(PlayerGameState.Lobby);
+		// 	//this.cameraToLobby.SendToPlayer(player.getPlayer(), new CFrame(0, 50, 0));
+		// 	return;
+		// }
 
 		player.setPlayerState(PlayerState.Respawning);
 

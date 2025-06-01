@@ -33,3 +33,37 @@ ServerRemotes.Client.GetNamespace("Game")
             mapVoteHandle = undefined;
         }
     });
+
+let timerHandle: Roact.Tree | undefined;
+let currentTime = 0;
+
+const mountTimer = (timeLeft: number) => {
+    if (timerHandle) Roact.unmount(timerHandle);
+    timerHandle = Roact.mount(
+        <Timer timeLeft={timeLeft} />,
+        Players.LocalPlayer.WaitForChild("PlayerGui"),
+    );
+};
+
+ServerRemotes.Client.GetNamespace("Timer")
+    .Get("Start")
+    .Connect((timeLeft: number) => {
+        currentTime = timeLeft;
+        mountTimer(currentTime);
+    });
+
+ServerRemotes.Client.GetNamespace("Timer")
+    .Get("Tick")
+    .Connect((timeLeft: number) => {
+        currentTime = timeLeft;
+        mountTimer(currentTime);
+    });
+
+ServerRemotes.Client.GetNamespace("Timer")
+    .Get("End")
+    .Connect(() => {
+        if (timerHandle) {
+            Roact.unmount(timerHandle);
+            timerHandle = undefined;
+        }
+    });

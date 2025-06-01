@@ -1,8 +1,7 @@
 import Roact from "@rbxts/roact";
 
 interface TimerProps {
-    timeLeft: number; // Time left in seconds
-    onTimeUp: () => void; // Callback when time is up
+    timeLeft: number;
 }
 
 export = (props: TimerProps) => {

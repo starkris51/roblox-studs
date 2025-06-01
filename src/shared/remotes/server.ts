@@ -3,7 +3,7 @@ import { MapType } from "shared/enums/grid";
 
 const Remotes = Net.CreateDefinitions({
 	Timer: Definitions.Namespace({
-		Start: Definitions.ServerToClientEvent<[]>(),
+		Start: Definitions.ServerToClientEvent<[timeLeft: number]>(),
 		Tick: Definitions.ServerToClientEvent<[timeLeft: number]>(),
 		End: Definitions.ServerToClientEvent<[]>(),
 	}),
