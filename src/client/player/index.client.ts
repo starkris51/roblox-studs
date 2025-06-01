@@ -8,18 +8,11 @@ const rootPart = character.WaitForChild("HumanoidRootPart") as BasePart;
 
 const camera = Workspace.CurrentCamera!;
 camera.CameraType = Enum.CameraType.Scriptable;
-let cameraOffset: CFrame = new CFrame();
 
 ServerRemotes.Client.GetNamespace("Camera")
 	.Get("CameraToMap")
 	.Connect((CFrame: CFrame) => {
 		if (rootPart) {
-			cameraOffset = CFrame;
+			camera.CFrame = CFrame;
 		}
 	});
-
-RunService.RenderStepped.Connect(() => {
-	if (rootPart) {
-		camera.CFrame = cameraOffset;
-	}
-});

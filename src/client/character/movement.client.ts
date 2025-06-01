@@ -52,7 +52,7 @@ function onInputBegan(input: InputObject, processed: boolean) {
 			isAttacking = false;
 			humanoid.WalkSpeed = MOVE_SPEED;
 		});
-		wait(0.55); // Wait for the kick animation to finish
+		wait(0.25); // Wait for the kick animation to finish
 		playerAttack.SendToServer(rootPart.Position, new Vector3(currentDirection.X, 0, currentDirection.Z));
 	}
 }
