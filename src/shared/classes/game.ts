@@ -118,14 +118,14 @@ export class GameManager {
 
 		const mostVotedMap = this.getMostVotedMap();
 
-		let width: number;
-		let height: number;
+		let width: number = 5;
+		let height: number = 5;
 
 		switch (mostVotedMap) {
 			case MapType.Normal:
 				this.map = MapType.Normal;
-				width = 5;
-				height = 5;
+				width = 10;
+				height = 10;
 				break;
 			case MapType.Large:
 				this.map = MapType.Large;
@@ -144,7 +144,7 @@ export class GameManager {
 				break;
 		}
 
-		this.grid = new Grid(20, 20, tileConfig, MapType.Normal, this.OnTileFall);
+		this.grid = new Grid(width, height, tileConfig, MapType.Normal, this.OnTileFall);
 
 		const center = new Vector3(
 			(this.grid!.getWidth() * this.grid!.getConfig()!.tileSize) / 2,
@@ -160,6 +160,7 @@ export class GameManager {
 
 		for (const player of this.players) {
 			player.setGameState(PlayerGameState.Playing);
+			player.setHealth(5);
 			this.respawnPlayer(player);
 		}
 
@@ -269,6 +270,17 @@ export class GameManager {
 		}
 		if (!this.grid) {
 			throw error("Grid is not initialized.");
+		}
+
+		let health = player.getHealth();
+
+		player.setHealth(health--);
+
+		if (health <= 0) {
+			player.setPlayerState(PlayerState.Dead);
+			player.setGameState(PlayerGameState.Lobby);
+			this.cameraToLobby.SendToPlayer(player.getPlayer(), new CFrame(0, 50, 0));
+			return;
 		}
 
 		player.setPlayerState(PlayerState.Respawning);

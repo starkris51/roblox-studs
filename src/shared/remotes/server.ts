@@ -2,9 +2,10 @@ import Net, { Definitions } from "@rbxts/net";
 import { MapType } from "shared/enums/grid";
 
 const Remotes = Net.CreateDefinitions({
-	Updates: Definitions.Namespace({
-		Timer: Definitions.ServerToClientEvent<[time: number]>(),
-		Score: Definitions.ServerToClientEvent<[score: number]>(),
+	Timer: Definitions.Namespace({
+		Start: Definitions.ServerToClientEvent<[]>(),
+		Tick: Definitions.ServerToClientEvent<[timeLeft: number]>(),
+		End: Definitions.ServerToClientEvent<[]>(),
 	}),
 
 	Game: Definitions.Namespace({

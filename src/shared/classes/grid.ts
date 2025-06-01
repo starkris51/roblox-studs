@@ -142,7 +142,7 @@ export class Grid {
 		for (const tile of tilesInLine) {
 			tile.state = TileState.Falling;
 			this.handleTileFallAndRise(tile, fallDelay);
-			fallDelay += 0.3;
+			fallDelay += 0.15;
 		}
 	}
 

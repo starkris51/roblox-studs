@@ -4,6 +4,7 @@ import ServerRemotes from "shared/remotes/server";
 import PlayerRemotes from "shared/remotes/player";
 import { Players } from "@rbxts/services";
 import { MapType } from "shared/enums/grid";
+import Timer = require("client/ui/Timer");
 
 let mapVoteHandle: Roact.Tree | undefined;
 
