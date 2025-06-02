@@ -1,5 +1,4 @@
 import { Players } from "@rbxts/services";
-import PlayerAnimations from "shared/assets/animations/player";
 import { GameManager } from "shared/classes/game";
 
 Players.CharacterAutoLoads = false;

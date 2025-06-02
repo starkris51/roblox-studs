@@ -18,6 +18,10 @@ const Remotes = Net.CreateDefinitions({
 		VoteGameMode: Definitions.ClientToServerEvent<[gameMode: string]>(),
 		UnvoteGameMode: Definitions.ClientToServerEvent<[gameMode: string]>(),
 	}),
+
+	UI: Definitions.Namespace({
+		PlayerToggleReady: Definitions.ServerAsyncFunction<() => boolean>(),
+	}),
 });
 
 export = Remotes;

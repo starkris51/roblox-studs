@@ -13,6 +13,7 @@ export class GamePlayer {
 		this.health = 0;
 		this.gameState = PlayerGameState.Lobby;
 		this.playerState = PlayerState.None;
+		this.isReady = false;
 	}
 
 	public getPlayer(): Player {
@@ -30,7 +31,7 @@ export class GamePlayer {
 	public getColor(): Color3 {
 		return this.color;
 	}
-	public isReadyToPlay(): boolean {
+	public getReady(): boolean {
 		return this.isReady;
 	}
 	public setHealth(health: number): void {
@@ -45,7 +46,14 @@ export class GamePlayer {
 	public setColor(color: Color3): void {
 		this.color = color;
 	}
-	public setReady(): void {
-		this.isReady = !this.isReady;
+	public setReady(ready: boolean): void {
+		this.isReady = ready;
+	}
+	public reset(): void {
+		this.health = 0;
+		this.color = new Color3(1, 1, 1);
+		this.isReady = false;
+		this.gameState = PlayerGameState.Lobby;
+		this.playerState = PlayerState.None;
 	}
 }

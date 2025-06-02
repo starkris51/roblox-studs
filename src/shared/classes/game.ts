@@ -13,9 +13,6 @@ export class GameManager {
 	private state: GameState;
 	private mode: GameMode;
 	private players: GamePlayer[];
-	private playersInLobby: GamePlayer[] = [];
-	private playersReady: GamePlayer[] = [];
-	private playersInGame: GamePlayer[] = [];
 	private map: MapType;
 	private mapVotes: Record<MapType, number>;
 	private modeVotes: Record<GameMode, number>;
@@ -43,12 +40,17 @@ export class GameManager {
 	private game = ServerRemotes.Server.GetNamespace("Game");
 	private voteMapSession = this.game.Get("VoteMapSession");
 	private endVoteMapSession = this.game.Get("EndVoteMapSession");
+	private lobbyRemote = this.game.Get("Lobby");
 
 	// Remotes for game timer
 	private timerRemotes = ServerRemotes.Server.GetNamespace("Timer");
 	private startTimerRemote = this.timerRemotes.Get("Start");
 	private tickTimerRemote = this.timerRemotes.Get("Tick");
 	private endTimerRemote = this.timerRemotes.Get("End");
+
+	// Remotes for UI
+	private playerUI = PlayerRemotes.Server.GetNamespace("UI");
+	private playerToggleReady = this.playerUI.Get("PlayerToggleReady");
 
 	constructor() {
 		this.state = GameState.WaitingForPlayers;
@@ -71,6 +73,7 @@ export class GameManager {
 		this.playerVoteMap.Connect(this.handlePlayerVoteMap);
 		this.playerUnVoteMap.Connect(this.handlePlayerUnVoteMap);
 		//this.playerVoteMode.Connect(this.handlePlayerVoteMode);
+		this.playerToggleReady.SetCallback(this.handlePlayerToggleReady);
 	}
 
 	public playerJoin(player: Player): void {
@@ -82,9 +85,9 @@ export class GameManager {
 
 		if (this.state === GameState.WaitingForPlayers && this.players.size() >= 1) {
 			this.startLobby(); //Starts the main game loop
-		}
-
-		print(`Player ${player.Name} joined the game. Total players: ${this.players.size()}`);
+		} else if (this.state === GameState.Lobby) {
+        	this.lobbyRemote.SendToPlayer(player);
+    	}
 	}
 
 	public playerLeave(player: GamePlayer): void {
@@ -98,9 +101,11 @@ export class GameManager {
 
 	public startLobby() {
 		this.state = GameState.Lobby;
-		this.timer = 1;
+		this.timer = 10;
 
 		print("Starting lobby...");
+
+		this.lobbyRemote.SendToAllPlayers();
 
 		this.startTimer(() => this.startVoting());
 	}
@@ -172,6 +177,13 @@ export class GameManager {
 		this.cameraLocation = CFrameCamera;
 
 		for (const player of this.players) {
+			if (!player.getReady()) {
+				this.cameraToMap.SendToPlayer(player.getPlayer(), this.cameraLocation);
+				player.setGameState(PlayerGameState.Lobby);
+				player.setPlayerState(PlayerState.None);
+				continue;
+			}
+
 			player.setGameState(PlayerGameState.Playing);
 			player.setHealth(5);
 			this.respawnPlayer(player);
@@ -185,6 +197,10 @@ export class GameManager {
 		this.grid?.reset();
 
 		for (const player of this.players) {
+			if (player.getGameState() !== PlayerGameState.Lobby) {
+				continue;
+			}
+
 			player.setGameState(PlayerGameState.Lobby);
 			player.setPlayerState(PlayerState.None);
 			player.setHealth(0);
@@ -287,6 +303,14 @@ export class GameManager {
 		return positions;
 	}
 
+	private checkIfGameOver(): void {
+		const remainingPlayer: GamePlayer[] = this.players.filter((p: GamePlayer) => p.getPlayerState() === PlayerState.Moving)
+
+		if (remainingPlayer.size() === 1) {
+			this.endGame();
+		}
+	}
+
 	private losePlayerHealth = (player: GamePlayer) => {
 		this.timer = 2;
 
@@ -306,7 +330,8 @@ export class GameManager {
 
 		if (health <= 0) {
 			player.setPlayerState(PlayerState.Dead);
-			player.setGameState(PlayerGameState.Lobby);
+			player.getPlayer().Character = undefined;
+			this.checkIfGameOver();
 			return;
 		}
 
@@ -404,5 +429,13 @@ export class GameManager {
 		}
 
 		return mostVotedMap;
+	}
+
+	private handlePlayerToggleReady = (player: Player) => {
+		const gamePlayer = this.getPlayer(player);
+		if (!gamePlayer) return false;
+		if (this.state !== GameState.Lobby) return gamePlayer.getReady();
+		gamePlayer.setReady(!gamePlayer.getReady());
+		return gamePlayer.getReady();
 	}
 }

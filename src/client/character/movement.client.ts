@@ -1,5 +1,4 @@
 import { Players, UserInputService, RunService } from "@rbxts/services";
-import PlayerAnimations from "shared/assets/animations/player";
 import { AnimationController } from "shared/classes/animation";
 import Remotes from "shared/remotes/player";
 

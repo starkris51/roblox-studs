@@ -1,6 +1,9 @@
 {
 	"name": "roblox-ts-game",
-	"globIgnorePaths": ["**/package.json", "**/tsconfig.json"],
+	"globIgnorePaths": [
+		"**/package.json",
+		"**/tsconfig.json"
+	],
 	"tree": {
 		"$className": "DataModel",
 		"ServerScriptService": {
@@ -42,7 +45,8 @@
 		"Workspace": {
 			"$className": "Workspace",
 			"$properties": {
-				"FilteringEnabled": true
+				"FilteringEnabled": true,
+				"StreamingEnabled": false
 			}
 		},
 		"HttpService": {

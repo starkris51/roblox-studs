@@ -9,6 +9,7 @@ const Remotes = Net.CreateDefinitions({
 	}),
 
 	Game: Definitions.Namespace({
+		Lobby: Definitions.ServerToClientEvent<[]>(),
 		Start: Definitions.ServerToClientEvent<[]>(),
 		VoteMapSession: Definitions.ServerToClientEvent<[maps: MapType[]]>(),
 		EndVoteMapSession: Definitions.ServerToClientEvent<[]>(),
