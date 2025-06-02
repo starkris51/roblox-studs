@@ -1,5 +1,6 @@
 import Net, { Definitions } from "@rbxts/net";
 import { MapType } from "shared/enums/grid";
+import { GameResultEntry } from "shared/types/game";
 
 const Remotes = Net.CreateDefinitions({
 	Timer: Definitions.Namespace({
@@ -14,7 +15,7 @@ const Remotes = Net.CreateDefinitions({
 		VoteMapSession: Definitions.ServerToClientEvent<[maps: MapType[]]>(),
 		EndVoteMapSession: Definitions.ServerToClientEvent<[]>(),
 		VoteGameModeSession: Definitions.ServerToClientEvent<[]>(),
-		End: Definitions.ServerToClientEvent<[]>(),
+		End: Definitions.ServerToClientEvent<[results: GameResultEntry[]]>(),
 		PlayerJoined: Definitions.ServerToClientEvent<[playerName: string]>(),
 		PlayerLeft: Definitions.ServerToClientEvent<[playerName: string]>(),
 	}),

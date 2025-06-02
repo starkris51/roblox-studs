@@ -8,6 +8,7 @@ import ServerRemotes from "shared/remotes/server";
 import { flipDirection, vector3ToTilePosition } from "shared/utils/convert";
 import { GridPosition, Tile } from "shared/types/grid";
 import { MapType } from "shared/enums/grid";
+import { GameResultEntry } from "shared/types/game";
 
 export class GameManager {
 	private state: GameState;
@@ -20,6 +21,7 @@ export class GameManager {
 	private timerConnection?: RBXScriptConnection;
 	private grid?: Grid;
 	private cameraLocation: CFrame;
+	private maxReadyPlayers: number = 2;
 
 	// Remotes for player actions
 	private playerActions = PlayerRemotes.Server.GetNamespace("Actions");
@@ -37,10 +39,12 @@ export class GameManager {
 	private cameraToLobby = this.playerCamera.Get("CameraToLobby");
 
 	// Remotes for game management
-	private game = ServerRemotes.Server.GetNamespace("Game");
-	private voteMapSession = this.game.Get("VoteMapSession");
-	private endVoteMapSession = this.game.Get("EndVoteMapSession");
-	private lobbyRemote = this.game.Get("Lobby");
+	private gameNamespace = ServerRemotes.Server.GetNamespace("Game");
+	private voteMapSession = this.gameNamespace.Get("VoteMapSession");
+	private endVoteMapSession = this.gameNamespace.Get("EndVoteMapSession");
+	private lobbyRemote = this.gameNamespace.Get("Lobby");
+	private endGameRemote = this.gameNamespace.Get("End");
+	private startGameRemote = this.gameNamespace.Get("Start");
 
 	// Remotes for game timer
 	private timerRemotes = ServerRemotes.Server.GetNamespace("Timer");
@@ -83,11 +87,12 @@ export class GameManager {
 
 		this.players.push(newPlayer);
 
-		if (this.state === GameState.WaitingForPlayers && this.players.size() >= 1) {
+		if (this.state === GameState.WaitingForPlayers && this.players.size() >= this.maxReadyPlayers) {
+			print(`Player ${player.Name} joined. Starting lobby...`);
 			this.startLobby(); //Starts the main game loop
 		} else if (this.state === GameState.Lobby) {
-        	this.lobbyRemote.SendToPlayer(player);
-    	}
+			this.lobbyRemote.SendToPlayer(player);
+		}
 	}
 
 	public playerLeave(player: GamePlayer): void {
@@ -101,9 +106,7 @@ export class GameManager {
 
 	public startLobby() {
 		this.state = GameState.Lobby;
-		this.timer = 10;
-
-		print("Starting lobby...");
+		this.timer = 15;
 
 		this.lobbyRemote.SendToAllPlayers();
 
@@ -111,6 +114,13 @@ export class GameManager {
 	}
 
 	private startVoting() {
+		const readyPlayers = this.players.filter((p) => p.getReady());
+		if (readyPlayers.size() < this.maxReadyPlayers) {
+			print("Not enough players ready to start voting.");
+			this.startLobby();
+			return;
+		}
+
 		this.state = GameState.VotingMap;
 		this.timer = 10;
 
@@ -138,6 +148,7 @@ export class GameManager {
 
 		let width: number = 5;
 		let height: number = 5;
+		let randomizedMap = false;
 
 		switch (mostVotedMap) {
 			case MapType.Normal:
@@ -154,15 +165,14 @@ export class GameManager {
 				this.map = MapType.Randomized;
 				width = math.random(20, 30);
 				height = math.random(20, 30);
-				tileConfig.tileColor = new Color3(math.random(), math.random(), math.random());
-				tileConfig.tileSize = math.random(3, 7);
+				randomizedMap = true;
 				break;
 			default:
 				this.map = MapType.Normal;
 				break;
 		}
 
-		this.grid = new Grid(width, height, tileConfig, MapType.Normal, this.OnTileFall);
+		this.grid = new Grid(width, height, tileConfig, MapType.Normal, this.OnTileFall, randomizedMap);
 
 		const center = new Vector3(
 			(this.grid!.getWidth() * this.grid!.getConfig()!.tileSize) / 2,
@@ -185,7 +195,7 @@ export class GameManager {
 			}
 
 			player.setGameState(PlayerGameState.Playing);
-			player.setHealth(5);
+			player.setHealth(1);
 			this.respawnPlayer(player);
 		}
 	}
@@ -197,15 +207,26 @@ export class GameManager {
 		this.grid?.reset();
 
 		for (const player of this.players) {
-			if (player.getGameState() !== PlayerGameState.Lobby) {
+			if (player.getGameState() !== PlayerGameState.Playing && player.getPlayerState() !== PlayerState.Moving) {
 				continue;
 			}
 
 			player.setGameState(PlayerGameState.Lobby);
 			player.setPlayerState(PlayerState.None);
 			player.setHealth(0);
-			player.getPlayer().Character?.Destroy();
+			player.getPlayer().Character = undefined;
 		}
+
+		const results: GameResultEntry[] = this.players.map((player: GamePlayer) => {
+			const kills: Record<number, number> = {}; // TODO: Populate with actual kill data
+
+			return {
+				userId: player.getPlayer().UserId,
+				kills: kills,
+			};
+		});
+
+		this.endGameRemote.SendToAllPlayers(results);
 
 		this.startTimer(() => this.startLobby());
 	}
@@ -304,7 +325,9 @@ export class GameManager {
 	}
 
 	private checkIfGameOver(): void {
-		const remainingPlayer: GamePlayer[] = this.players.filter((p: GamePlayer) => p.getPlayerState() === PlayerState.Moving)
+		const remainingPlayer: GamePlayer[] = this.players.filter(
+			(p: GamePlayer) => p.getPlayerState() === PlayerState.Moving,
+		);
 
 		if (remainingPlayer.size() === 1) {
 			this.endGame();
@@ -437,5 +460,5 @@ export class GameManager {
 		if (this.state !== GameState.Lobby) return gamePlayer.getReady();
 		gamePlayer.setReady(!gamePlayer.getReady());
 		return gamePlayer.getReady();
-	}
+	};
 }

@@ -4,7 +4,6 @@ import { GameManager } from "shared/classes/game";
 Players.CharacterAutoLoads = false;
 
 const gameManager = new GameManager();
-gameManager.startLobby();
 
 Players.PlayerAdded.Connect((player) => {
 	gameManager.playerJoin(player);

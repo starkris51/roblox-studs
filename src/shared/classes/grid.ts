@@ -11,21 +11,50 @@ export class Grid {
 	private config: TilePartConfig;
 	private map: MapType;
 	private collisionBlocks: Part[] = [];
+	private seed = 0;
 	private onTileFell: (tile: Tile) => void;
 
-	constructor(width: number, height: number, config: TilePartConfig, map: MapType, onTileFell: (tile: Tile) => void) {
+	constructor(
+		width: number,
+		height: number,
+		config: TilePartConfig,
+		map: MapType,
+		onTileFell: (tile: Tile) => void,
+		generatedMap: boolean = false,
+	) {
 		this.width = width;
 		this.height = height;
 		this.tiles = [];
 		this.config = config;
 		this.map = map;
-		for (let x = 0; x < width; x++) {
-			this.tiles[x] = [];
-			for (let y = 0; y < height; y++) {
-				this.tiles[x][y] = {
-					position: { x, y },
-					state: TileState.Active,
-				};
+		if (generatedMap) {
+			this.seed = math.random(0, 10000);
+			for (let x = 0; x < width; x++) {
+				this.tiles[x] = [];
+				for (let y = 0; y < height; y++) {
+					const noise = math.noise((x + this.seed) / 6, (y + this.seed) / 6, this.seed);
+					const normalized = (noise + 1) / 2;
+					let state: TileState;
+					if (normalized < 0.05) {
+						state = TileState.Active;
+					} else {
+						state = TileState.Collision;
+					}
+					this.tiles[x][y] = {
+						position: { x, y },
+						state,
+					};
+				}
+			}
+		} else {
+			for (let x = 0; x < width; x++) {
+				this.tiles[x] = [];
+				for (let y = 0; y < height; y++) {
+					this.tiles[x][y] = {
+						position: { x, y },
+						state: TileState.Active,
+					};
+				}
 			}
 		}
 
@@ -33,36 +62,38 @@ export class Grid {
 
 		for (const column of this.tiles) {
 			for (const tile of column) {
-				tile.part = createTilePart(config, tile);
+				if (tile.state === TileState.Active) {
+					tile.part = createTilePart(config, tile);
+				} else if (tile.state === TileState.Collision) {
+					tile.part = this.createCollisionBlock(tile.position, config.tileSize);
+				}
 			}
 		}
 
-		if (this.map === MapType.Normal || this.map === MapType.Large) {
-			for (const column of this.tiles) {
-				for (const tile of column) {
-					if (
-						tile.position.x === 0 ||
-						tile.position.x === this.width - 1 ||
-						tile.position.y === 0 ||
-						tile.position.y === this.height - 1
-					) {
-						const tileSize = config.tileSize;
-						const tilePos = tile.position;
-						if (tile.position.x === 0) {
-							this.createCollisionBlock({ x: tilePos.x - 1, y: tilePos.y }, tileSize);
-						}
+		for (const column of this.tiles) {
+			for (const tile of column) {
+				if (
+					tile.position.x === 0 ||
+					tile.position.x === this.width - 1 ||
+					tile.position.y === 0 ||
+					tile.position.y === this.height - 1
+				) {
+					const tileSize = config.tileSize;
+					const tilePos = tile.position;
+					if (tile.position.x === 0) {
+						this.createCollisionBlock({ x: tilePos.x - 1, y: tilePos.y }, tileSize);
+					}
 
-						if (tile.position.x === this.width - 1) {
-							this.createCollisionBlock({ x: tilePos.x + 1, y: tilePos.y }, tileSize);
-						}
+					if (tile.position.x === this.width - 1) {
+						this.createCollisionBlock({ x: tilePos.x + 1, y: tilePos.y }, tileSize);
+					}
 
-						if (tile.position.y === 0) {
-							this.createCollisionBlock({ x: tilePos.x, y: tilePos.y - 1 }, tileSize);
-						}
+					if (tile.position.y === 0) {
+						this.createCollisionBlock({ x: tilePos.x, y: tilePos.y - 1 }, tileSize);
+					}
 
-						if (tile.position.y === this.height - 1) {
-							this.createCollisionBlock({ x: tilePos.x, y: tilePos.y + 1 }, tileSize);
-						}
+					if (tile.position.y === this.height - 1) {
+						this.createCollisionBlock({ x: tilePos.x, y: tilePos.y + 1 }, tileSize);
 					}
 				}
 			}
