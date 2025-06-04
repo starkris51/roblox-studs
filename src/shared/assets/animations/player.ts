@@ -9,6 +9,7 @@ const PlayerAnimations = {
 	Attack: "rbxassetid://84710608090562",
 	Dash: "rbxassetid://1234567890",
 	Win: "rbxassetid://1234567890",
+	Fall: "rbxassetid://96500533428967",
 	Emote1: "rbxassetid://1234567890",
 	Emote2: "rbxassetid://1234567890",
 	Emote3: "rbxassetid://1234567890",

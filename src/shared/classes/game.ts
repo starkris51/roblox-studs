@@ -9,6 +9,7 @@ import { flipDirection, vector3ToTilePosition } from "shared/utils/convert";
 import { GridPosition, Tile } from "shared/types/grid";
 import { MapType } from "shared/enums/grid";
 import { GameResultEntry } from "shared/types/game";
+import { playFallAnimation } from "shared/utils/player";
 
 export class GameManager {
 	private state: GameState;
@@ -21,7 +22,7 @@ export class GameManager {
 	private timerConnection?: RBXScriptConnection;
 	private grid?: Grid;
 	private cameraLocation: CFrame;
-	private maxReadyPlayers: number = 2;
+	private maxReadyPlayers: number = 1;
 
 	// Remotes for player actions
 	private playerActions = PlayerRemotes.Server.GetNamespace("Actions");
@@ -31,7 +32,6 @@ export class GameManager {
 	private playerVote = PlayerRemotes.Server.GetNamespace("Voting");
 	private playerVoteMap = this.playerVote.Get("VoteMap");
 	private playerUnVoteMap = this.playerVote.Get("UnvoteMap");
-	private playerVoteMode = this.playerVote.Get("VoteGameMode");
 
 	// Remotes for camera
 	private playerCamera = ServerRemotes.Server.GetNamespace("Camera");
@@ -57,7 +57,7 @@ export class GameManager {
 	private playerToggleReady = this.playerUI.Get("PlayerToggleReady");
 
 	constructor() {
-		this.state = GameState.WaitingForPlayers;
+		this.state = GameState.Lobby;
 		this.mode = GameMode.Normal;
 		this.players = [];
 		this.map = MapType.Normal;
@@ -80,6 +80,26 @@ export class GameManager {
 		this.playerToggleReady.SetCallback(this.handlePlayerToggleReady);
 	}
 
+	public async initialize(): Promise<void> {
+		print("Initializing game...");
+
+		this.state = GameState.Lobby;
+
+		print("Game initialized!");
+	}
+
+	public cleanup(): void {
+		print("Cleaning up game resources...");
+
+		this.timerConnection?.Disconnect();
+
+		this.grid?.reset();
+
+		this.players = [];
+
+		print("Game cleanup complete!");
+	}
+
 	public playerJoin(player: Player): void {
 		const newPlayer = new GamePlayer(player);
 
@@ -87,7 +107,7 @@ export class GameManager {
 
 		this.players.push(newPlayer);
 
-		if (this.state === GameState.WaitingForPlayers && this.players.size() >= this.maxReadyPlayers) {
+		if (this.players.size() > 0) {
 			print(`Player ${player.Name} joined. Starting lobby...`);
 			this.startLobby(); //Starts the main game loop
 		} else if (this.state === GameState.Lobby) {
@@ -98,6 +118,12 @@ export class GameManager {
 	public playerLeave(player: GamePlayer): void {
 		const index = this.players.indexOf(player);
 		this.players.remove(index);
+
+		if (this.state === GameState.VotingMap) {
+			this.handlePlayerUnVoteMap(player.getPlayer(), this.map);
+		} else if (this.state === GameState.Playing) {
+			this.checkIfGameOver();
+		}
 	}
 
 	public getPlayer(player: Player): GamePlayer | undefined {
@@ -106,7 +132,7 @@ export class GameManager {
 
 	public startLobby() {
 		this.state = GameState.Lobby;
-		this.timer = 15;
+		this.timer = 10;
 
 		this.lobbyRemote.SendToAllPlayers();
 
@@ -195,7 +221,7 @@ export class GameManager {
 			}
 
 			player.setGameState(PlayerGameState.Playing);
-			player.setHealth(1);
+			player.setHealth(5);
 			this.respawnPlayer(player);
 		}
 	}
@@ -329,38 +355,48 @@ export class GameManager {
 			(p: GamePlayer) => p.getPlayerState() === PlayerState.Moving,
 		);
 
-		if (remainingPlayer.size() === 1) {
+		if (remainingPlayer.size() <= 0) {
 			this.endGame();
 		}
 	}
 
 	private losePlayerHealth = (player: GamePlayer) => {
-		this.timer = 2;
-
 		if (player.getPlayerState() === PlayerState.Respawning) {
 			warn(`Player is already respawning.`);
 			return;
 		}
-		if (!this.grid) {
-			throw error("Grid is not initialized.");
+		this.timer = 2;
+
+		const character = player.getPlayer().Character;
+		if (!character) {
+			warn("Character is undefined.");
+			return;
 		}
-
-		player.getPlayer().Character?.Destroy();
-
-		let health = player.getHealth();
-
-		player.setHealth(health--);
-
-		if (health <= 0) {
-			player.setPlayerState(PlayerState.Dead);
-			player.getPlayer().Character = undefined;
-			this.checkIfGameOver();
+		const humanoid = character.FindFirstChild("Humanoid") as Humanoid | undefined;
+		if (!humanoid) {
+			warn("Humanoid not found in character.");
 			return;
 		}
 
-		player.setPlayerState(PlayerState.Respawning);
+		humanoid.PlatformStand = true;
 
-		// Do a animation or visual effect here if needed
+		playFallAnimation(character).then(() => {
+			let health = player.getHealth() - 1;
+			player.setHealth(health);
+
+			player.getPlayer().Character?.Destroy();
+
+			if (health <= 0) {
+				player.setPlayerState(PlayerState.Dead);
+				this.checkIfGameOver();
+				return;
+			}
+
+			player.setPlayerState(PlayerState.Respawning);
+			this.startTimer(() => {
+				this.respawnPlayer(player);
+			});
+		});
 
 		this.startTimer(() => {
 			this.respawnPlayer(player);

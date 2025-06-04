@@ -9,13 +9,19 @@ const rootPart = character.WaitForChild("HumanoidRootPart") as BasePart;
 const animator = humanoid.WaitForChild("Animator") as Animator;
 const animationController = new AnimationController(animator);
 
-const MOVE_SPEED = 16;
+const MOVE_SPEED = 24;
 
 humanoid.JumpPower = 0;
 humanoid.JumpHeight = 0;
 humanoid.AutoJumpEnabled = false;
 humanoid.AutoRotate = false;
 humanoid.WalkSpeed = MOVE_SPEED;
+
+let canDash = true;
+let dashCooldownTimer: thread | undefined;
+let dashing = false;
+const dashDuration = 0.2;
+const dashCooldown = 1.5;
 
 let isAttacking = false;
 
@@ -31,6 +37,7 @@ const keyDirectionMap: Record<string, Vector3> = {
 
 const heldKeys = new Set<string>();
 let currentDirection = new Vector3(0, 0, -1);
+const dashSpeed = 100;
 
 function moveAndFace(direction: Vector3) {
 	currentDirection = direction;
@@ -53,6 +60,30 @@ function onInputBegan(input: InputObject, processed: boolean) {
 		});
 		wait(0.25); // Wait for the kick animation to finish
 		playerAttack.SendToServer(rootPart.Position, new Vector3(currentDirection.X, 0, currentDirection.Z));
+	}
+
+	if (input.KeyCode === Enum.KeyCode.LeftShift) {
+		if (!canDash || dashing || isAttacking) return;
+
+		dashing = true;
+		canDash = false;
+
+		const dashTrack = animationController.play("Dash");
+
+		const dashDirection = currentDirection.Unit;
+
+		rootPart.ApplyImpulse(dashDirection.mul(dashSpeed * 10));
+
+		task.delay(dashDuration, () => {
+			if (rootPart) {
+				rootPart.AssemblyLinearVelocity = new Vector3(0, 0, 0);
+			}
+			dashing = false;
+		});
+
+		dashCooldownTimer = task.delay(dashCooldown, () => {
+			canDash = true;
+		});
 	}
 }
 

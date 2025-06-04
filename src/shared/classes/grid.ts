@@ -35,7 +35,7 @@ export class Grid {
 					const noise = math.noise((x + this.seed) / 6, (y + this.seed) / 6, this.seed);
 					const normalized = (noise + 1) / 2;
 					let state: TileState;
-					if (normalized < 0.05) {
+					if (normalized > 0.37) {
 						state = TileState.Active;
 					} else {
 						state = TileState.Collision;
