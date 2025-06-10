@@ -17,6 +17,15 @@ importers:
       '@rbxts/roact':
         specifier: ^3.0.1
         version: 3.0.1
+      '@rbxts/roact-hooked':
+        specifier: ^2.6.2
+        version: 2.6.2(@rbxts/roact@3.0.1)
+      '@rbxts/roact-hooks':
+        specifier: 0.5.1-ts.0
+        version: 0.5.1-ts.0
+      '@rbxts/roact-spring':
+        specifier: ^2.0.0
+        version: 2.0.0(@rbxts/roact-hooks@0.5.1-ts.0)(@rbxts/roact@3.0.1)
       '@rbxts/services':
         specifier: ^1.5.5
         version: 1.5.5
@@ -142,6 +151,20 @@ packages:
 
   '@rbxts/net@3.0.10':
     resolution: {integrity: sha512-R+0tKn4/+nmHIVbYgfZsuGq1jxYU5AcKuhyOlSYyzzODTIyJ2QhkyFGjvPSAvEhD+CzeTGKciQt4oy25CWI1oA==}
+
+  '@rbxts/roact-hooked@2.6.2':
+    resolution: {integrity: sha512-2J/wxYOuzs7rCq5i7B+AoCSwdeQHc0jnr/HuD3wz92NVK5h2zjeEC/91Auee438/QXJKDbBGmB9cZV/p1ZVvmg==}
+    peerDependencies:
+      '@rbxts/roact': '*'
+
+  '@rbxts/roact-hooks@0.5.1-ts.0':
+    resolution: {integrity: sha512-itua7KY/bMr97nDFrafE5svBuoB/OYHi8gAjAPhAtjWlGxvQx613EUwNkElxlqx25YqXT6xEAU70V97nC1w2wQ==}
+
+  '@rbxts/roact-spring@2.0.0':
+    resolution: {integrity: sha512-7aIQWTUjuzu8F/bzIS7krenJlE3dEnB3zpI3xBdorgfyNNSHiM+C/XyIBf/uZGt1F8KM6L/nQkRYpFzQUgPm/g==}
+    peerDependencies:
+      '@rbxts/roact': '*'
+      '@rbxts/roact-hooks': '*'
 
   '@rbxts/roact@3.0.1':
     resolution: {integrity: sha512-1RVGy8PL078pXdrrYboiKftMKqB4YgYd4Sh/M3aWkhY2TKBBL+hlT1Om35cmCn8sKzdzQwzf2CbmcU49lHoNuw==}
@@ -919,6 +942,17 @@ snapshots:
   '@rbxts/compiler-types@3.0.0-types.0': {}
 
   '@rbxts/net@3.0.10': {}
+
+  '@rbxts/roact-hooked@2.6.2(@rbxts/roact@3.0.1)':
+    dependencies:
+      '@rbxts/roact': 3.0.1
+
+  '@rbxts/roact-hooks@0.5.1-ts.0': {}
+
+  '@rbxts/roact-spring@2.0.0(@rbxts/roact-hooks@0.5.1-ts.0)(@rbxts/roact@3.0.1)':
+    dependencies:
+      '@rbxts/roact': 3.0.1
+      '@rbxts/roact-hooks': 0.5.1-ts.0
 
   '@rbxts/roact@3.0.1': {}
 

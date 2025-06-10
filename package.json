@@ -28,6 +28,9 @@
     "@rbxts/animation": "^2.1.0",
     "@rbxts/net": "^3.0.10",
     "@rbxts/roact": "^3.0.1",
+    "@rbxts/roact-hooked": "^2.6.2",
+    "@rbxts/roact-hooks": "0.5.1-ts.0",
+    "@rbxts/roact-spring": "^2.0.0",
     "@rbxts/services": "^1.5.5",
     "@rbxts/t": "^3.2.1"
   }

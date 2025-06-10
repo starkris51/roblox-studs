@@ -7,16 +7,16 @@ camera.CameraType = Enum.CameraType.Scriptable;
 let lockedCameraCFrame: CFrame | undefined = undefined;
 
 ServerRemotes.Client.GetNamespace("Camera")
-    .Get("CameraToMap")
-    .Connect((CFrame: CFrame) => {
-        lockedCameraCFrame = CFrame;
-        camera.CameraType = Enum.CameraType.Scriptable;
-        camera.CFrame = CFrame;
-    });
+	.Get("CameraToMap")
+	.Connect((CFrame: CFrame) => {
+		lockedCameraCFrame = CFrame;
+		camera.CameraType = Enum.CameraType.Scriptable;
+		camera.CFrame = CFrame;
+	});
 
 RunService.RenderStepped.Connect(() => {
-    if (lockedCameraCFrame) {
-        camera.CameraType = Enum.CameraType.Scriptable;
-        camera.CFrame = lockedCameraCFrame;
-    }
+	if (lockedCameraCFrame) {
+		camera.CameraType = Enum.CameraType.Scriptable;
+		camera.CFrame = lockedCameraCFrame;
+	}
 });

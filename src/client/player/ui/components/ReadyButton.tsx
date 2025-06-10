@@ -1,9 +1,12 @@
 import Roact from "@rbxts/roact";
+import { useState } from "@rbxts/roact-hooked";
 
 interface ReadyButtonProps {
     onToggleReady: () => void;
     isReady: boolean;
 }
+
+const [test, setTest] = useState('test');
 
 export = (props: ReadyButtonProps) => (
     <screengui ResetOnSpawn={false} IgnoreGuiInset={true}>
