@@ -1,4 +1,4 @@
-import { Players } from "@rbxts/services";
+import { Players, Workspace } from "@rbxts/services";
 import { GameManager } from "shared/classes/game";
 
 Players.CharacterAutoLoads = false;

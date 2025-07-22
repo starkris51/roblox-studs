@@ -10,6 +10,7 @@ import { GridPosition, Tile } from "shared/types/grid";
 import { MapType } from "shared/enums/grid";
 import { GameResultEntry } from "shared/types/game";
 import { playFallAnimation } from "shared/utils/player";
+import { getMapSizeForPlayerCount, playerColors } from "shared/assets/data";
 
 export class GameManager {
 	private state: GameState;
@@ -20,6 +21,7 @@ export class GameManager {
 	private modeVotes: Record<GameMode, number>;
 	private timer: number = 0;
 	private timerConnection?: RBXScriptConnection;
+	private respawnTimers: Map<number, RBXScriptConnection> = new Map();
 	private grid?: Grid;
 	private cameraLocation: CFrame;
 	private maxReadyPlayers: number = 1;
@@ -93,6 +95,11 @@ export class GameManager {
 
 		this.timerConnection?.Disconnect();
 
+		for (const [userId, connection] of this.respawnTimers) {
+			connection.Disconnect();
+		}
+		this.respawnTimers.clear();
+
 		this.grid?.reset();
 
 		this.players = [];
@@ -116,8 +123,16 @@ export class GameManager {
 	}
 
 	public playerLeave(player: GamePlayer): void {
+		const userId = player.getPlayer().UserId;
+
 		const index = this.players.indexOf(player);
 		this.players.remove(index);
+
+		const respawnTimer = this.respawnTimers.get(userId);
+		if (respawnTimer) {
+			respawnTimer.Disconnect();
+			this.respawnTimers.delete(userId);
+		}
 
 		if (this.state === GameState.VotingMap) {
 			this.handlePlayerUnVoteMap(player.getPlayer(), this.map);
@@ -167,25 +182,37 @@ export class GameManager {
 
 		const tileConfig = {
 			tileSize: 5,
-			tileColor: new Color3(1, 0, 0),
+			tileColor: new Color3(0.55, 0, 0),
 		};
 
 		const mostVotedMap = this.getMostVotedMap();
 
-		let width: number = 5;
-		let height: number = 5;
+		let playerCount = 0;
+
+		//count players
+
+		for (const player of this.players) {
+			if (player.getReady()) {
+				playerCount++;
+			}
+		}
+
+		let width: number = 8;
+		let height: number = 8;
 		let randomizedMap = false;
 
 		switch (mostVotedMap) {
 			case MapType.Normal:
 				this.map = MapType.Normal;
-				width = 10;
-				height = 10;
+				const normalMapSize = getMapSizeForPlayerCount(playerCount);
+				width = normalMapSize?.width || 8;
+				height = normalMapSize?.height || 8;
 				break;
 			case MapType.Large:
 				this.map = MapType.Large;
-				width = 30;
-				height = 30;
+				const largeMapSize = getMapSizeForPlayerCount(playerCount);
+				width = largeMapSize?.width * 2;
+				height = largeMapSize?.height * 2;
 				break;
 			case MapType.Randomized:
 				this.map = MapType.Randomized;
@@ -198,7 +225,7 @@ export class GameManager {
 				break;
 		}
 
-		this.grid = new Grid(width, height, tileConfig, MapType.Normal, this.OnTileFall, randomizedMap);
+		this.grid = new Grid(width, height, tileConfig, this.map, this.OnTileFall, randomizedMap);
 
 		const center = new Vector3(
 			(this.grid!.getWidth() * this.grid!.getConfig()!.tileSize) / 2,
@@ -221,6 +248,7 @@ export class GameManager {
 			}
 
 			player.setGameState(PlayerGameState.Playing);
+			player.setColor(playerColors[playerCount] || new Color3(1, 1, 1));
 			player.setHealth(5);
 			this.respawnPlayer(player);
 		}
@@ -277,6 +305,10 @@ export class GameManager {
 			throw error("Grid is not initialized.");
 		}
 
+		if (player.getHealth() <= 0) {
+			return;
+		}
+
 		const respawnLocation = this.grid.getRandomSpawnLocation();
 
 		player.setPlayerState(PlayerState.Moving);
@@ -321,7 +353,7 @@ export class GameManager {
 			const tilePosition = vector3ToTilePosition(position, this.grid.getConfig()?.tileSize || 5);
 			const flippedDirection = flipDirection(direction);
 
-			this.grid.lineAttack(tilePosition, flippedDirection);
+			this.grid.lineAttack(tilePosition, flippedDirection, gamePlayer.getRange(), gamePlayer.getColor());
 		} catch (error) {
 			throw warn(`Error handling player attack for ${player.Name}: ${error}`);
 		}
@@ -355,7 +387,7 @@ export class GameManager {
 			(p: GamePlayer) => p.getPlayerState() === PlayerState.Moving,
 		);
 
-		if (remainingPlayer.size() <= 0) {
+		if (remainingPlayer.size() <= 1) {
 			this.endGame();
 		}
 	}
@@ -388,20 +420,46 @@ export class GameManager {
 
 			if (health <= 0) {
 				player.setPlayerState(PlayerState.Dead);
-				this.checkIfGameOver();
+				this.grid?.minimizeMap();
+				//this.checkIfGameOver();
 				return;
 			}
 
 			player.setPlayerState(PlayerState.Respawning);
-			this.startTimer(() => {
-				this.respawnPlayer(player);
-			});
-		});
-
-		this.startTimer(() => {
-			this.respawnPlayer(player);
+			this.startRespawnTimer(player, 2);
 		});
 	};
+
+	private startRespawnTimer(player: GamePlayer, respawnTime: number) {
+		const userId = player.getPlayer().UserId;
+
+		const existingTimer = this.respawnTimers.get(userId);
+		if (existingTimer) {
+			existingTimer.Disconnect();
+		}
+
+		let timeLeft = respawnTime;
+
+		this.startTimerRemote.SendToPlayer(player.getPlayer(), timeLeft);
+
+		const connection = RunService.Heartbeat.Connect(() => {
+			const [dt] = RunService.Heartbeat.Wait();
+			timeLeft -= dt;
+
+			this.tickTimerRemote.SendToPlayer(player.getPlayer(), math.max(0, math.floor(timeLeft)));
+
+			if (timeLeft <= 0) {
+				connection.Disconnect();
+				this.respawnTimers.delete(userId);
+
+				this.endTimerRemote.SendToPlayer(player.getPlayer());
+
+				this.respawnPlayer(player);
+			}
+		});
+
+		this.respawnTimers.set(userId, connection);
+	}
 
 	private OnTileFall = (tile: Tile) => {
 		if (!this.grid) {

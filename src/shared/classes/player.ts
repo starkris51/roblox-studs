@@ -7,6 +7,7 @@ export class GamePlayer {
 	private isReady: boolean = false;
 	private gameState: PlayerGameState;
 	private playerState: PlayerState;
+	private range: number = 8;
 
 	constructor(player: Player) {
 		this.player = player;
@@ -21,6 +22,9 @@ export class GamePlayer {
 	}
 	public getHealth(): number {
 		return this.health;
+	}
+	public getRange(): number {
+		return this.range;
 	}
 	public getGameState(): PlayerGameState {
 		return this.gameState;

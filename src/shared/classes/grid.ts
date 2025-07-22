@@ -3,6 +3,7 @@ import { MapType, TileState } from "shared/enums/grid";
 import { GridPosition, TilePartConfig, Tile } from "shared/types/grid";
 import { tilePositionToVector3 } from "shared/utils/convert";
 import { changeTileColor, createTilePart, makeTileFall, makeTileRise } from "shared/utils/tile";
+import { GamePlayer } from "./player";
 
 export class Grid {
 	private width: number;
@@ -135,7 +136,7 @@ export class Grid {
 		}
 	}
 
-	public lineAttack(start: GridPosition, direction: Vector3) {
+	public lineAttack(start: GridPosition, direction: Vector3, range: number, color: Color3) {
 		if (!this.tiles) {
 			throw error("Grid tiles are not initialized.");
 		}
@@ -151,7 +152,15 @@ export class Grid {
 
 		const tilesInLine: Tile[] = [];
 		let pos = { x: start.x + gridDelta.x, y: start.y + gridDelta.y };
+		let distance = 1;
+
+		const useRange = range > 0;
+
 		while (pos.x >= 0 && pos.x < this.width && pos.y >= 0 && pos.y < this.height) {
+			if (useRange && distance > range) {
+				break;
+			}
+
 			const tile = this.getTile(pos);
 			if (!tile) {
 				break;
@@ -162,11 +171,12 @@ export class Grid {
 			}
 
 			pos = { x: pos.x + gridDelta.x, y: pos.y + gridDelta.y };
+			distance++;
 		}
 
 		let colorDelay = 0.05;
 		for (const tile of tilesInLine) {
-			this.handleStartTileFall(tile, colorDelay, new Color3(0.15, 0.24, 0.63));
+			this.handleStartTileFall(tile, colorDelay, color);
 			colorDelay += 0.05;
 		}
 
@@ -174,6 +184,65 @@ export class Grid {
 		for (const tile of tilesInLine) {
 			tile.state = TileState.Falling;
 			this.handleTileFallAndRise(tile, fallDelay);
+			fallDelay += 0.15;
+		}
+	}
+
+	public minimizeMap() {
+		if (!this.tiles) {
+			throw error("Grid tiles are not initialized.");
+		}
+
+		const edgeTiles: Tile[] = [];
+
+		// Collect edge tiles from all columns
+
+		// Top row (left to right)
+		for (let x = 0; x < this.width; x++) {
+			const tile = this.getTile({ x, y: 0 });
+			if (tile && tile.state === TileState.Active) {
+				edgeTiles.push(tile);
+			}
+		}
+
+		// Right column (top to bottom, excluding corners already added)
+		for (let y = 1; y < this.height; y++) {
+			const tile = this.getTile({ x: this.width - 1, y });
+			if (tile && tile.state === TileState.Active) {
+				edgeTiles.push(tile);
+			}
+		}
+
+		// Bottom row (right to left, excluding corners already added)
+		for (let x = this.width - 2; x >= 0; x--) {
+			const tile = this.getTile({ x, y: this.height - 1 });
+			if (tile && tile.state === TileState.Active) {
+				edgeTiles.push(tile);
+			}
+		}
+
+		// Left column (bottom to top, excluding corners already added)
+		for (let y = this.height - 2; y >= 1; y--) {
+			const tile = this.getTile({ x: 0, y });
+			if (tile && tile.state === TileState.Active) {
+				edgeTiles.push(tile);
+			}
+		}
+
+		// go through all edge tile and set them to falling state
+		edgeTiles.forEach((element) => {
+			element.state = TileState.Falling;
+		});
+
+		let colorDelay = 0.05;
+		for (const tile of edgeTiles) {
+			this.handleStartTileFall(tile, colorDelay, new Color3(0.54, 0.54, 0.54));
+			colorDelay += 0.05;
+		}
+
+		let fallDelay = colorDelay;
+		for (const tile of edgeTiles) {
+			this.handlePermanentTileFall(tile, fallDelay);
 			fallDelay += 0.15;
 		}
 	}
@@ -241,6 +310,19 @@ export class Grid {
 
 			tile.state = TileState.Active;
 			this.respawnTile(tile, 1, collision);
+		})();
+	}
+
+	private handlePermanentTileFall(tile: Tile, delay: number) {
+		coroutine.wrap(async () => {
+			wait(delay);
+			tile.state = TileState.Removed;
+			this.onTileFell(tile);
+			this.createCollisionBlock(tile.position, this.config?.tileSize || 5);
+			await makeTileFall(tile.part);
+			if (tile.part) {
+				tile.part.Transparency = 1;
+			}
 		})();
 	}
 

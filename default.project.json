@@ -46,7 +46,8 @@
 			"$className": "Workspace",
 			"$properties": {
 				"FilteringEnabled": true,
-				"StreamingEnabled": false
+				"StreamingEnabled": false,
+				"FallenPartsDestroyHeight": 0
 			}
 		},
 		"HttpService": {
