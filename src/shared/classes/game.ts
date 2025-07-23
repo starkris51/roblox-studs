@@ -1,4 +1,4 @@
-import { GameMode, GameState } from "shared/enums/game";
+import { GameMode, GameState, Powerups } from "shared/enums/game";
 import { GamePlayer } from "./player";
 import { PlayerGameState, PlayerState } from "shared/enums/player";
 import { Players, RunService } from "@rbxts/services";
@@ -11,6 +11,7 @@ import { MapType } from "shared/enums/grid";
 import { GameResultEntry } from "shared/types/game";
 import { playFallAnimation } from "shared/utils/player";
 import { getMapSizeForPlayerCount, playerColors } from "shared/assets/data";
+import { fourLinePowerup, shotgunPowerup } from "shared/utils/powerups";
 
 export class GameManager {
 	private state: GameState;
@@ -24,11 +25,19 @@ export class GameManager {
 	private respawnTimers: Map<number, RBXScriptConnection> = new Map();
 	private grid?: Grid;
 	private cameraLocation: CFrame;
-	private maxReadyPlayers: number = 1;
+	private maxReadyPlayers: number = 2; // Minimum players required to start the game
 
 	// Remotes for player actions
 	private playerActions = PlayerRemotes.Server.GetNamespace("Actions");
 	private playerAttack = this.playerActions.Get("PlayerAttack");
+	private playerParry = this.playerActions.Get("PlayerParry");
+	private playerUsePowerup = this.playerActions.Get("PlayerUsePowerup");
+	private playerGotPowerup = this.playerActions.Get("PlayerGotPowerup");
+
+	// Remotes for player getting a powerup that changes client
+	private playerPowerups = PlayerRemotes.Server.GetNamespace("Powerups");
+	private sendSpeedBoost = this.playerPowerups.Get("Speed");
+	private sendDizzy = this.playerPowerups.Get("Dizzy");
 
 	// Remotes for player voting
 	private playerVote = PlayerRemotes.Server.GetNamespace("Voting");
@@ -80,6 +89,8 @@ export class GameManager {
 		this.playerUnVoteMap.Connect(this.handlePlayerUnVoteMap);
 		//this.playerVoteMode.Connect(this.handlePlayerVoteMode);
 		this.playerToggleReady.SetCallback(this.handlePlayerToggleReady);
+		this.playerParry.Connect(this.handlePlayerParry);
+		this.playerUsePowerup.Connect(this.usePowerup);
 	}
 
 	public async initialize(): Promise<void> {
@@ -163,7 +174,7 @@ export class GameManager {
 		}
 
 		this.state = GameState.VotingMap;
-		this.timer = 10;
+		this.timer = 0;
 
 		this.resetVotes();
 
@@ -225,7 +236,7 @@ export class GameManager {
 				break;
 		}
 
-		this.grid = new Grid(width, height, tileConfig, this.map, this.OnTileFall, randomizedMap);
+		this.grid = new Grid(width, height, tileConfig, this.map, this.OnTileFall, this.getPowerup, randomizedMap);
 
 		const center = new Vector3(
 			(this.grid!.getWidth() * this.grid!.getConfig()!.tileSize) / 2,
@@ -249,9 +260,11 @@ export class GameManager {
 
 			player.setGameState(PlayerGameState.Playing);
 			player.setColor(playerColors[playerCount] || new Color3(1, 1, 1));
-			player.setHealth(5);
+			player.setHealth(3);
 			this.respawnPlayer(player);
 		}
+
+		this.grid?.spawnPowerupOnTile();
 	}
 
 	private endGame() {
@@ -359,6 +372,39 @@ export class GameManager {
 		}
 	};
 
+	private handlePlayerParry = (player: Player, position: Vector3, direction: Vector3) => {
+		try {
+			if (!this.grid) {
+				warn("Grid is not initialized.");
+				return;
+			}
+
+			const gamePlayer = this.getPlayer(player);
+			if (!gamePlayer) {
+				warn(`Player ${player.Name} not found in gameManager`);
+				return;
+			}
+			if (gamePlayer.getGameState() !== PlayerGameState.Playing) {
+				return;
+			}
+
+			const tilePosition = vector3ToTilePosition(position, this.grid.getConfig()?.tileSize || 5);
+			const flippedDirection = flipDirection(direction);
+			const parrySuccessful = this.grid.parryAttack(
+				tilePosition,
+				flippedDirection,
+				gamePlayer.getRange(),
+				gamePlayer.getColor(),
+			);
+
+			if (parrySuccessful) {
+				print(`Player ${player.Name} successfully parried an attack!`);
+			}
+		} catch (error) {
+			throw warn(`Error handling player parry for ${player.Name}: ${error}`);
+		}
+	};
+
 	private getAllPLayerGridPositions(): Record<number, GridPosition> {
 		if (!this.grid) {
 			throw error("Grid is not initialized.");
@@ -384,7 +430,7 @@ export class GameManager {
 
 	private checkIfGameOver(): void {
 		const remainingPlayer: GamePlayer[] = this.players.filter(
-			(p: GamePlayer) => p.getPlayerState() === PlayerState.Moving,
+			(p: GamePlayer) => p.getPlayerState() !== PlayerState.Dead,
 		);
 
 		if (remainingPlayer.size() <= 1) {
@@ -421,7 +467,7 @@ export class GameManager {
 			if (health <= 0) {
 				player.setPlayerState(PlayerState.Dead);
 				this.grid?.minimizeMap();
-				//this.checkIfGameOver();
+				this.checkIfGameOver();
 				return;
 			}
 
@@ -554,5 +600,104 @@ export class GameManager {
 		if (this.state !== GameState.Lobby) return gamePlayer.getReady();
 		gamePlayer.setReady(!gamePlayer.getReady());
 		return gamePlayer.getReady();
+	};
+
+	private getPowerup = (player: Player) => {
+		// This function should handle the logic for when a player collects a powerup
+		const powerupTypes = [
+			Powerups.FourLine,
+			Powerups.Earthquake,
+			//Powerups.Shotgun,
+			Powerups.Speed,
+			// Powerups.Slowdown,
+			// Powerups.Teleport,
+		];
+		const randomPowerup = powerupTypes[math.random(0, powerupTypes.size() - 1)];
+
+		print(`Player ${player.Name} collected powerup: ${randomPowerup}`);
+		const gamePlayer = this.getPlayer(player);
+		if (!gamePlayer) {
+			warn(`GamePlayer for ${player.Name} not found.`);
+			return;
+		}
+
+		gamePlayer.addPowerup(randomPowerup);
+		this.playerGotPowerup.SendToPlayer(player, randomPowerup);
+	};
+
+	private usePowerup = (player: Player) => {
+		const gamePlayer = this.getPlayer(player);
+		if (!gamePlayer) {
+			warn(`GamePlayer for ${player.Name} not found.`);
+			return;
+		}
+
+		if (gamePlayer.getGameState() !== PlayerGameState.Playing) {
+			warn(`Player ${player.Name} is not in a playable state.`);
+			return;
+		}
+
+		if (gamePlayer.getPowerups().size() === 0) {
+			warn(`Player ${player.Name} has no powerups to use.`);
+			return;
+		}
+
+		const powerup = gamePlayer.getPowerups()[0];
+		if (!powerup) {
+			warn(`Player ${player.Name} has no powerups to use.`);
+			return;
+		}
+
+		if (!this.grid) {
+			warn("Grid is not initialized.");
+			return;
+		}
+
+		switch (powerup) {
+			case Powerups.FourLine:
+				fourLinePowerup(this.grid, gamePlayer.getPosition(), gamePlayer.getColor());
+				gamePlayer.removePowerup(powerup);
+				break;
+			case Powerups.Shotgun:
+				// Implement the effect of the Shotgun powerup
+				if (
+					shotgunPowerup(
+						this.grid,
+						gamePlayer.getPosition(),
+						gamePlayer.getDirection(),
+						gamePlayer.getColor(),
+					)
+				) {
+					gamePlayer.removePowerup(powerup);
+				}
+				break;
+			case Powerups.Speed:
+				this.sendSpeedBoost.SendToPlayer(player);
+				gamePlayer.removePowerup(powerup);
+				break;
+			case Powerups.Slowdown:
+				// Implement the effect of the Slowdown powerup
+				break;
+			case Powerups.Teleport:
+				const character = player.Character;
+				const randomLocation = this.grid.getRandomSpawnLocation();
+				if (character && character.PrimaryPart) {
+					character.MoveTo(randomLocation);
+				}
+				break;
+			case Powerups.Earthquake:
+				this.grid.makeRandomTileFall();
+				gamePlayer.removePowerup(powerup);
+				break;
+			case Powerups.Health:
+				gamePlayer.setHealth(gamePlayer.getHealth() + 1);
+				gamePlayer.removePowerup(powerup);
+				break;
+			default:
+				warn(`Unknown powerup: ${powerup}`);
+				break;
+		}
+
+		this.grid?.spawnPowerupOnTile();
 	};
 }

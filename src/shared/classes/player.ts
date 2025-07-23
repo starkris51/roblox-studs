@@ -1,4 +1,6 @@
+import { Powerups } from "shared/enums/game";
 import { PlayerGameState, PlayerState } from "shared/enums/player";
+import { GridPosition } from "shared/types/grid";
 
 export class GamePlayer {
 	private player: Player;
@@ -8,6 +10,8 @@ export class GamePlayer {
 	private gameState: PlayerGameState;
 	private playerState: PlayerState;
 	private range: number = 8;
+	private powerups: Powerups[] = [];
+	private currentDirection: Vector3 = new Vector3(0, 0, -1);
 
 	constructor(player: Player) {
 		this.player = player;
@@ -59,5 +63,35 @@ export class GamePlayer {
 		this.isReady = false;
 		this.gameState = PlayerGameState.Lobby;
 		this.playerState = PlayerState.None;
+	}
+	public addPowerup(powerup: Powerups): void {
+		this.powerups.push(powerup);
+	}
+	public removePowerup(powerup: Powerups): void {
+		const index = this.powerups.indexOf(powerup);
+		if (index !== -1) {
+			this.powerups.remove(index);
+		}
+	}
+	public getPowerups(): Powerups[] {
+		return this.powerups;
+	}
+	public getPosition(): Vector3 {
+		return this.player.Character?.PrimaryPart?.Position || new Vector3(0, 0, 0);
+	}
+	public getDirection(): Vector3 {
+		const character = this.player.Character;
+		if (!character || !character.PrimaryPart) {
+			return new Vector3(0, 0, -1); // Default direction
+		}
+
+		// Get the direction the character is facing
+		const lookVector = character.PrimaryPart.CFrame.LookVector;
+
+		// Round to nearest cardinal direction for grid-based movement
+		const roundedX = math.abs(lookVector.X) > math.abs(lookVector.Z) ? (lookVector.X > 0 ? 1 : -1) : 0;
+		const roundedZ = math.abs(lookVector.Z) > math.abs(lookVector.X) ? (lookVector.Z > 0 ? 1 : -1) : 0;
+
+		return new Vector3(roundedX, 0, roundedZ);
 	}
 }

@@ -1,4 +1,5 @@
 import Net, { Definitions } from "@rbxts/net";
+import { Powerups } from "shared/enums/game";
 import { MapType } from "shared/enums/grid";
 import { GameResultEntry } from "shared/types/game";
 

@@ -1,9 +1,8 @@
-import { Workspace } from "@rbxts/services";
+import { Players, ReplicatedStorage, TweenService, Workspace } from "@rbxts/services";
 import { MapType, TileState } from "shared/enums/grid";
 import { GridPosition, TilePartConfig, Tile } from "shared/types/grid";
-import { tilePositionToVector3 } from "shared/utils/convert";
-import { changeTileColor, createTilePart, makeTileFall, makeTileRise } from "shared/utils/tile";
-import { GamePlayer } from "./player";
+import { tilePositionToVector3, vector3ToTilePosition } from "shared/utils/convert";
+import { changeTileColor, createTilePart, makeTileFall } from "shared/utils/tile";
 
 export class Grid {
 	private width: number;
@@ -12,8 +11,10 @@ export class Grid {
 	private config: TilePartConfig;
 	private map: MapType;
 	private collisionBlocks: Part[] = [];
+	private activeFallingTiles: Set<Tile> = new Set();
 	private seed = 0;
 	private onTileFell: (tile: Tile) => void;
+	private getPowerup: (player: Player) => void;
 
 	constructor(
 		width: number,
@@ -21,6 +22,7 @@ export class Grid {
 		config: TilePartConfig,
 		map: MapType,
 		onTileFell: (tile: Tile) => void,
+		getPowerup: (player: Player) => void,
 		generatedMap: boolean = false,
 	) {
 		this.width = width;
@@ -60,6 +62,7 @@ export class Grid {
 		}
 
 		this.onTileFell = onTileFell;
+		this.getPowerup = getPowerup;
 
 		for (const column of this.tiles) {
 			for (const tile of column) {
@@ -177,6 +180,7 @@ export class Grid {
 		let colorDelay = 0.05;
 		for (const tile of tilesInLine) {
 			this.handleStartTileFall(tile, colorDelay, color);
+			this.activeFallingTiles.add(tile);
 			colorDelay += 0.05;
 		}
 
@@ -188,45 +192,95 @@ export class Grid {
 		}
 	}
 
+	public canParryAt(position: GridPosition, direction: Vector3): Tile | undefined {
+		const checkPos = {
+			x: position.x + direction.X,
+			y: position.y + direction.Z,
+		};
+
+		const tile = this.getTile(checkPos);
+		if (tile && this.activeFallingTiles.has(tile) && tile.state === TileState.Falling) {
+			return tile;
+		}
+		return undefined;
+	}
+
+	public parryAttack(
+		parryPosition: GridPosition,
+		parryDirection: Vector3,
+		range: number,
+		playerColor: Color3,
+	): boolean {
+		const parriedTile = this.canParryAt(parryPosition, parryDirection);
+		if (!parriedTile) {
+			return false;
+		}
+
+		this.activeFallingTiles.delete(parriedTile);
+
+		parriedTile.state = TileState.Active;
+		if (parriedTile.part) {
+			parriedTile.part.Color = parriedTile.color || this.config?.tileColor || new Color3(1, 0, 0);
+		}
+
+		const randomParryDirection = new Vector3(math.random(-1, 1), 0, math.random(-1, 1));
+
+		this.lineAttack(parryPosition, randomParryDirection, range, playerColor);
+
+		return true;
+	}
+
 	public minimizeMap() {
 		if (!this.tiles) {
 			throw error("Grid tiles are not initialized.");
 		}
 
 		const edgeTiles: Tile[] = [];
+		let offset = 0;
 
-		// Collect edge tiles from all columns
+		// Keep increasing offset until we find active tiles or reach center
+		while (edgeTiles.size() === 0 && offset < math.min(this.width, this.height) / 2) {
+			// Top row (left to right)
+			for (let x = offset; x < this.width - offset; x++) {
+				const tile = this.getTile({ x, y: offset });
+				if (tile && tile.state === TileState.Active) {
+					edgeTiles.push(tile);
+				}
+			}
 
-		// Top row (left to right)
-		for (let x = 0; x < this.width; x++) {
-			const tile = this.getTile({ x, y: 0 });
-			if (tile && tile.state === TileState.Active) {
-				edgeTiles.push(tile);
+			// Right column (top to bottom, excluding corners already added)
+			for (let y = offset + 1; y < this.height - offset; y++) {
+				const tile = this.getTile({ x: this.width - 1 - offset, y });
+				if (tile && tile.state === TileState.Active) {
+					edgeTiles.push(tile);
+				}
+			}
+
+			// Bottom row (right to left, excluding corners already added)
+			for (let x = this.width - 2 - offset; x >= offset; x--) {
+				const tile = this.getTile({ x, y: this.height - 1 - offset });
+				if (tile && tile.state === TileState.Active) {
+					edgeTiles.push(tile);
+				}
+			}
+
+			// Left column (bottom to top, excluding corners already added)
+			for (let y = this.height - 2 - offset; y >= offset + 1; y--) {
+				const tile = this.getTile({ x: offset, y });
+				if (tile && tile.state === TileState.Active) {
+					edgeTiles.push(tile);
+				}
+			}
+
+			// If no active tiles found at current offset, try next inner layer
+			if (edgeTiles.size() === 0) {
+				offset++;
 			}
 		}
 
-		// Right column (top to bottom, excluding corners already added)
-		for (let y = 1; y < this.height; y++) {
-			const tile = this.getTile({ x: this.width - 1, y });
-			if (tile && tile.state === TileState.Active) {
-				edgeTiles.push(tile);
-			}
-		}
-
-		// Bottom row (right to left, excluding corners already added)
-		for (let x = this.width - 2; x >= 0; x--) {
-			const tile = this.getTile({ x, y: this.height - 1 });
-			if (tile && tile.state === TileState.Active) {
-				edgeTiles.push(tile);
-			}
-		}
-
-		// Left column (bottom to top, excluding corners already added)
-		for (let y = this.height - 2; y >= 1; y--) {
-			const tile = this.getTile({ x: 0, y });
-			if (tile && tile.state === TileState.Active) {
-				edgeTiles.push(tile);
-			}
+		// If no active tiles found at all, there's nothing to minimize
+		if (edgeTiles.size() === 0) {
+			return;
 		}
 
 		// go through all edge tile and set them to falling state
@@ -255,6 +309,8 @@ export class Grid {
 			}
 		}
 
+		this.activeFallingTiles = new Set<Tile>();
+
 		for (const block of this.collisionBlocks) {
 			block.Destroy();
 		}
@@ -278,6 +334,21 @@ export class Grid {
 		return tilePositionToVector3({ x, y }, this.config?.tileSize || 5);
 	}
 
+	public getRandomTilePosition(): GridPosition {
+		let x: number, y: number, tile: Tile | undefined;
+		let attempts = 0;
+		do {
+			x = math.random(0, this.width - 1);
+			y = math.random(0, this.height - 1);
+			tile = this.getTile({ x, y });
+			attempts++;
+		} while (tile && tile.state !== TileState.Active && attempts < 100);
+		if (tile && tile.state === TileState.Active) {
+			return { x, y };
+		}
+		return { x: math.random(0, this.width - 1), y: math.random(0, this.height - 1) };
+	}
+
 	private handleStartTileFall(tile: Tile, delay: number, color: Color3) {
 		coroutine.wrap(async () => {
 			wait(delay);
@@ -297,9 +368,38 @@ export class Grid {
 		})();
 	}
 
+	public makeRandomTileFall() {
+		const tilesAboutToFall: Tile[] = [];
+
+		const howManyShouldFall = this.width > 10 ? 8 : 5;
+
+		for (let i = 0; i < howManyShouldFall; i++) {
+			const randomTilePosition = this.getRandomTilePosition();
+			const tile = this.getTile(randomTilePosition);
+			if (tile && tile.state === TileState.Active && !this.activeFallingTiles.has(tile)) {
+				tile.state = TileState.Falling;
+				tilesAboutToFall.push(tile);
+			}
+		}
+
+		let colorDelay = 0.25;
+		for (const tile of tilesAboutToFall) {
+			this.handleStartTileFall(tile, colorDelay, new Color3(0.54, 0.54, 0.54));
+			this.activeFallingTiles.add(tile);
+			colorDelay += 0.25;
+		}
+
+		let fallDelay = colorDelay;
+		for (const tile of tilesAboutToFall) {
+			this.handleTileFallAndRise(tile, fallDelay);
+			fallDelay += 0.15;
+		}
+	}
+
 	private handleTileFallAndRise(tile: Tile, delay: number) {
 		coroutine.wrap(async () => {
 			wait(delay);
+			this.activeFallingTiles.delete(tile);
 			tile.state = TileState.Removed;
 			this.onTileFell(tile);
 			const collision = this.createCollisionBlock(tile.position, this.config?.tileSize || 5);
@@ -321,7 +421,7 @@ export class Grid {
 			this.createCollisionBlock(tile.position, this.config?.tileSize || 5);
 			await makeTileFall(tile.part);
 			if (tile.part) {
-				tile.part.Transparency = 1;
+				tile.part.Destroy();
 			}
 		})();
 	}
@@ -340,5 +440,54 @@ export class Grid {
 		this.collisionBlocks.push(block);
 
 		return block;
+	}
+
+	public spawnPowerupOnTile() {
+		// Randomly spawn a powerup on a tile
+		const randomTile = this.getRandomSpawnLocation();
+
+		const tilePosition = vector3ToTilePosition(randomTile, this.config?.tileSize || 5);
+
+		if (!randomTile) {
+			warn("No valid tile found for powerup spawn.");
+			return;
+		}
+
+		const tile = this.getTile(tilePosition);
+
+		if (!tile || tile.state !== TileState.Active) {
+			return;
+		}
+
+		const powerup = ReplicatedStorage.FindFirstChild("TS")
+			?.FindFirstChild("assets")
+			?.FindFirstChild("powerup") as Part;
+		if (!powerup) {
+			error("Powerup part not found in ReplicatedStorage.");
+		}
+
+		const powerupClone = powerup.Clone();
+		powerupClone.Position = new Vector3(randomTile.X, randomTile.Y + 5, randomTile.Z); // Raise it above the tile
+		powerupClone.Parent = Workspace;
+
+		tile.powerup = powerupClone;
+
+		// Add tween animation to the powerup
+		TweenService.Create(
+			powerupClone,
+			new TweenInfo(1, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out, -1, true),
+			{
+				Position: powerupClone.Position.add(new Vector3(0, 5, 0)), // Bounce up and down
+			},
+		).Play();
+
+		const connection = powerupClone.Touched.Connect((hit: BasePart) => {
+			const player = Players.GetPlayerFromCharacter(hit.Parent);
+			if (player) {
+				connection.Disconnect();
+				tile.powerup?.Destroy();
+				this.getPowerup(player);
+			}
+		});
 	}
 }

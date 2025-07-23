@@ -14,4 +14,5 @@ export interface Tile {
 	texture?: string;
 	part?: Part;
 	state: TileState;
+	powerup?: Part;
 }

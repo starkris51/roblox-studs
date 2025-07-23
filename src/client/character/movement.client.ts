@@ -9,7 +9,7 @@ const rootPart = character.WaitForChild("HumanoidRootPart") as BasePart;
 const animator = humanoid.WaitForChild("Animator") as Animator;
 const animationController = new AnimationController(animator);
 
-const MOVE_SPEED = 24;
+const MOVE_SPEED = 20;
 
 humanoid.JumpPower = 0;
 humanoid.JumpHeight = 0;
@@ -26,7 +26,11 @@ const dashCooldown = 1.5;
 let isAttacking = false;
 
 const actions = Remotes.Client.GetNamespace("Actions");
+const powerups = Remotes.Client.GetNamespace("Powerups");
 const playerAttack = actions.Get("PlayerAttack");
+
+const speedPowerupReceived = powerups.Get("Speed");
+const invisiblePowerupReceived = powerups.Get("Invisible");
 
 const keyDirectionMap: Record<string, Vector3> = {
 	w: new Vector3(0, 0, -1),
@@ -85,6 +89,24 @@ function onInputBegan(input: InputObject, processed: boolean) {
 			canDash = true;
 		});
 	}
+	if (input.KeyCode === Enum.KeyCode.E) {
+		if (dashing || isAttacking) return;
+		//const parryTrack = animationController.play("Parry");
+		// parryTrack.Stopped.Once(() => {
+		// 	isAttacking = false;
+		// });
+		print("Parry action triggered");
+		playerAttack.SendToServer(rootPart.Position, new Vector3(currentDirection.X, 0, currentDirection.Z));
+	}
+	if (input.KeyCode === Enum.KeyCode.Q) {
+		if (dashing || isAttacking) return;
+		//const powerupTrack = animationController.play("Powerup");
+		// powerupTrack.Stopped.Once(() => {
+		// 	isAttacking = false;
+		// });
+		print("Powerup action triggered");
+		Remotes.Client.GetNamespace("Actions").Get("PlayerUsePowerup").SendToServer();
+	}
 }
 
 function onInputEnded(input: InputObject) {
@@ -104,6 +126,14 @@ function onRenderStepped() {
 		moveAndFace(moveDirection);
 	}
 }
+
+speedPowerupReceived.Connect(() => {
+	humanoid.WalkSpeed += 10;
+});
+
+invisiblePowerupReceived.Connect(() => {
+	//make character transparent
+});
 
 UserInputService.InputBegan.Connect(onInputBegan);
 UserInputService.InputEnded.Connect(onInputEnded);
