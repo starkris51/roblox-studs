@@ -27,7 +27,7 @@ export class GameManager {
 	private respawnTimers: Map<number, RBXScriptConnection> = new Map();
 	private grid?: Grid;
 	private cameraLocation: CFrame;
-	private maxReadyPlayers: number = 1; // Minimum players required to start the game
+	private maxReadyPlayers: number = 2; // Minimum players required to start the game
 
 	// Remotes for player actions
 	private playerActionsNamespace = PlayerRemotes.Server.GetNamespace("Actions");
@@ -193,7 +193,7 @@ export class GameManager {
 		}
 
 		this.state = GameState.VotingMap;
-		this.timer = 0;
+		this.timer = 10;
 
 		this.resetVotes();
 
@@ -569,6 +569,11 @@ export class GameManager {
 					if (player && player.getPlayerState() === PlayerState.Moving) {
 						this.losePlayerHealth(player);
 					}
+				}
+
+				if (tile.powerup) {
+					tile.powerup.Destroy();
+					tile.powerup = undefined;
 				}
 			}
 		} catch (error) {

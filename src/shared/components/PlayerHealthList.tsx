@@ -101,7 +101,7 @@ export = (props: PlayerHealthListProps) => {
     return (
         <screengui ResetOnSpawn={false} IgnoreGuiInset={true}>
             <frame
-                Size={new UDim2(0.3, 0, 0.6, 0)}
+                Size={new UDim2(0.2, 0, 0.6, 0)}
                 Position={new UDim2(0.05, 0, 0.2, 0)}
                 BackgroundColor3={Color3.fromRGB(20, 20, 25)}
                 BorderSizePixel={2}
