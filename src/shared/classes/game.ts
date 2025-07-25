@@ -8,7 +8,7 @@ import ServerRemotes from "shared/remotes/server";
 import { flipDirection, vector3ToTilePosition } from "shared/utils/convert";
 import { GridPosition, Tile } from "shared/types/grid";
 import { MapType } from "shared/enums/grid";
-import { GameResultEntry } from "shared/types/game";
+import { GameResultEntry, PlayerHealth, PlayerReadyData } from "shared/types/game";
 import { playFallAnimation } from "shared/utils/player";
 import { getMapSizeForPlayerCount, playerColors } from "shared/assets/data";
 import { fourLinePowerup, shotgunPowerup } from "shared/utils/powerups";
@@ -22,32 +22,39 @@ export class GameManager {
 	private modeVotes: Record<GameMode, number>;
 	private timer: number = 0;
 	private timerConnection?: RBXScriptConnection;
+	private powerupTimer: number = 0;
+	private powerupTimerConnection?: RBXScriptConnection;
 	private respawnTimers: Map<number, RBXScriptConnection> = new Map();
 	private grid?: Grid;
 	private cameraLocation: CFrame;
-	private maxReadyPlayers: number = 2; // Minimum players required to start the game
+	private maxReadyPlayers: number = 1; // Minimum players required to start the game
 
 	// Remotes for player actions
-	private playerActions = PlayerRemotes.Server.GetNamespace("Actions");
-	private playerAttack = this.playerActions.Get("PlayerAttack");
-	private playerParry = this.playerActions.Get("PlayerParry");
-	private playerUsePowerup = this.playerActions.Get("PlayerUsePowerup");
-	private playerGotPowerup = this.playerActions.Get("PlayerGotPowerup");
+	private playerActionsNamespace = PlayerRemotes.Server.GetNamespace("Actions");
+	private playerAttackRemote = this.playerActionsNamespace.Get("PlayerAttack");
+	private playerParryRemote = this.playerActionsNamespace.Get("PlayerParry");
+	private playerUsePowerupRemote = this.playerActionsNamespace.Get("PlayerUsePowerup");
+	private playerGotPowerupRemote = this.playerActionsNamespace.Get("PlayerGotPowerup");
+	private playerUsedPowerupRemote = this.playerActionsNamespace.Get("PlayerUsedPowerup");
 
 	// Remotes for player getting a powerup that changes client
-	private playerPowerups = PlayerRemotes.Server.GetNamespace("Powerups");
-	private sendSpeedBoost = this.playerPowerups.Get("Speed");
-	private sendDizzy = this.playerPowerups.Get("Dizzy");
+	private playerPowerupsNamespace = PlayerRemotes.Server.GetNamespace("Powerups");
+	private sendSpeedBoostRemote = this.playerPowerupsNamespace.Get("Speed");
+	private sendDizzy = this.playerPowerupsNamespace.Get("Dizzy");
+	private sendInvisible = this.playerPowerupsNamespace.Get("Invisible");
+	private sendSlowdown = this.playerPowerupsNamespace.Get("Slowdown");
+	private sendShield = this.playerPowerupsNamespace.Get("Shield");
+	private disableAttack = this.playerPowerupsNamespace.Get("DisableAttack");
 
 	// Remotes for player voting
-	private playerVote = PlayerRemotes.Server.GetNamespace("Voting");
-	private playerVoteMap = this.playerVote.Get("VoteMap");
-	private playerUnVoteMap = this.playerVote.Get("UnvoteMap");
+	private playerVoteNamespace = PlayerRemotes.Server.GetNamespace("Voting");
+	private playerVoteMap = this.playerVoteNamespace.Get("VoteMap");
+	private playerUnVoteMap = this.playerVoteNamespace.Get("UnvoteMap");
 
 	// Remotes for camera
-	private playerCamera = ServerRemotes.Server.GetNamespace("Camera");
-	private cameraToMap = this.playerCamera.Get("CameraToMap");
-	private cameraToLobby = this.playerCamera.Get("CameraToLobby");
+	private playerCameraNamespace = ServerRemotes.Server.GetNamespace("Camera");
+	private cameraToMap = this.playerCameraNamespace.Get("CameraToMap");
+	private cameraToLobby = this.playerCameraNamespace.Get("CameraToLobby");
 
 	// Remotes for game management
 	private gameNamespace = ServerRemotes.Server.GetNamespace("Game");
@@ -64,8 +71,14 @@ export class GameManager {
 	private endTimerRemote = this.timerRemotes.Get("End");
 
 	// Remotes for UI
-	private playerUI = PlayerRemotes.Server.GetNamespace("UI");
-	private playerToggleReady = this.playerUI.Get("PlayerToggleReady");
+	private playerUINamespace = PlayerRemotes.Server.GetNamespace("UI");
+	private playerToggleReadyRemote = this.playerUINamespace.Get("PlayerToggleReady");
+
+	// Server side UI Sending
+	private serverRemoteUINamespace = ServerRemotes.Server.GetNamespace("UI");
+	private playerReadyUpdateRemote = this.serverRemoteUINamespace.Get("PlayerReadyUpdate");
+	private playerHealthUpdateRemote = this.serverRemoteUINamespace.Get("PlayerHealthUpdate");
+	private showResultsRemote = this.serverRemoteUINamespace.Get("ShowResults");
 
 	constructor() {
 		this.state = GameState.Lobby;
@@ -84,13 +97,13 @@ export class GameManager {
 		this.grid = undefined;
 		this.cameraLocation = new CFrame(0, 50, 0);
 
-		this.playerAttack.Connect(this.handlePlayerAttack);
+		this.playerAttackRemote.Connect(this.handlePlayerAttack);
 		this.playerVoteMap.Connect(this.handlePlayerVoteMap);
 		this.playerUnVoteMap.Connect(this.handlePlayerUnVoteMap);
 		//this.playerVoteMode.Connect(this.handlePlayerVoteMode);
-		this.playerToggleReady.SetCallback(this.handlePlayerToggleReady);
-		this.playerParry.Connect(this.handlePlayerParry);
-		this.playerUsePowerup.Connect(this.usePowerup);
+		this.playerToggleReadyRemote.SetCallback(this.handlePlayerToggleReady);
+		this.playerParryRemote.Connect(this.handlePlayerParry);
+		this.playerUsePowerupRemote.Connect(this.usePowerup);
 	}
 
 	public async initialize(): Promise<void> {
@@ -125,6 +138,8 @@ export class GameManager {
 
 		this.players.push(newPlayer);
 
+		this.broadcastPlayerReadyUpdate();
+
 		if (this.players.size() > 0) {
 			print(`Player ${player.Name} joined. Starting lobby...`);
 			this.startLobby(); //Starts the main game loop
@@ -138,6 +153,8 @@ export class GameManager {
 
 		const index = this.players.indexOf(player);
 		this.players.remove(index);
+
+		this.broadcastPlayerReadyUpdate();
 
 		const respawnTimer = this.respawnTimers.get(userId);
 		if (respawnTimer) {
@@ -161,6 +178,8 @@ export class GameManager {
 		this.timer = 10;
 
 		this.lobbyRemote.SendToAllPlayers();
+
+		this.broadcastPlayerReadyUpdate();
 
 		this.startTimer(() => this.startVoting());
 	}
@@ -264,14 +283,21 @@ export class GameManager {
 			this.respawnPlayer(player);
 		}
 
-		this.grid?.spawnPowerupOnTile();
+		this.startGameRemote.SendToAllPlayers();
+		this.broadcastPlayerHealthUpdate();
+
+		this.startPowerupSpawning();
 	}
 
 	private endGame() {
 		this.state = GameState.Ended;
-		this.timer = 10;
+		this.timer = 15; // Give more time to view results
 
 		this.grid?.reset();
+
+		// Find the winner (last player standing)
+		const alivePlayers = this.players.filter((player: GamePlayer) => player.getPlayerState() !== PlayerState.Dead);
+		const winnerId = alivePlayers.size() === 1 ? alivePlayers[0].getPlayer().UserId : -1;
 
 		for (const player of this.players) {
 			if (player.getGameState() !== PlayerGameState.Playing && player.getPlayerState() !== PlayerState.Moving) {
@@ -285,14 +311,18 @@ export class GameManager {
 		}
 
 		const results: GameResultEntry[] = this.players.map((player: GamePlayer) => {
-			const kills: Record<number, number> = {}; // TODO: Populate with actual kill data
+			const kills: number = player.getKills();
+			const isWinner = player.getPlayer().UserId === winnerId;
 
 			return {
 				userId: player.getPlayer().UserId,
 				kills: kills,
+				winner: isWinner,
 			};
 		});
 
+		// Show results screen to all players
+		this.showResultsRemote.SendToAllPlayers(results);
 		this.endGameRemote.SendToAllPlayers(results);
 
 		this.startTimer(() => this.startLobby());
@@ -309,6 +339,17 @@ export class GameManager {
 				this.timerConnection?.Disconnect();
 				this.endTimerRemote.SendToAllPlayers();
 				onEnd();
+			}
+		});
+	}
+
+	private startPowerupSpawning() {
+		this.powerupTimerConnection?.Disconnect();
+		this.powerupTimerConnection = RunService.Heartbeat.Connect(() => {
+			this.powerupTimer += RunService.Heartbeat.Wait()[0];
+			if (this.powerupTimer >= 10) {
+				this.grid?.spawnPowerupOnTile();
+				this.powerupTimer = 0;
 			}
 		});
 	}
@@ -462,6 +503,8 @@ export class GameManager {
 			let health = player.getHealth() - 1;
 			player.setHealth(health);
 
+			this.broadcastPlayerHealthUpdate();
+
 			player.getPlayer().Character?.Destroy();
 
 			if (health <= 0) {
@@ -599,6 +642,9 @@ export class GameManager {
 		if (!gamePlayer) return false;
 		if (this.state !== GameState.Lobby) return gamePlayer.getReady();
 		gamePlayer.setReady(!gamePlayer.getReady());
+
+		this.broadcastPlayerReadyUpdate();
+
 		return gamePlayer.getReady();
 	};
 
@@ -607,10 +653,13 @@ export class GameManager {
 		const powerupTypes = [
 			Powerups.FourLine,
 			Powerups.Earthquake,
-			//Powerups.Shotgun,
+			Powerups.Shotgun,
 			Powerups.Speed,
-			// Powerups.Slowdown,
-			// Powerups.Teleport,
+			Powerups.Health,
+			Powerups.Slowdown,
+			Powerups.Teleport,
+			Powerups.Dizzy,
+			Powerups.DisableAttack,
 		];
 		const randomPowerup = powerupTypes[math.random(0, powerupTypes.size() - 1)];
 
@@ -622,7 +671,7 @@ export class GameManager {
 		}
 
 		gamePlayer.addPowerup(randomPowerup);
-		this.playerGotPowerup.SendToPlayer(player, randomPowerup);
+		this.playerGotPowerupRemote.SendToPlayer(player, randomPowerup);
 	};
 
 	private usePowerup = (player: Player) => {
@@ -657,9 +706,9 @@ export class GameManager {
 			case Powerups.FourLine:
 				fourLinePowerup(this.grid, gamePlayer.getPosition(), gamePlayer.getColor());
 				gamePlayer.removePowerup(powerup);
+				this.playerUsedPowerupRemote.SendToPlayer(player);
 				break;
 			case Powerups.Shotgun:
-				// Implement the effect of the Shotgun powerup
 				if (
 					shotgunPowerup(
 						this.grid,
@@ -669,14 +718,18 @@ export class GameManager {
 					)
 				) {
 					gamePlayer.removePowerup(powerup);
+					this.playerUsedPowerupRemote.SendToPlayer(player);
 				}
 				break;
 			case Powerups.Speed:
-				this.sendSpeedBoost.SendToPlayer(player);
+				this.sendSpeedBoostRemote.SendToPlayer(player, 3);
 				gamePlayer.removePowerup(powerup);
+				this.playerUsedPowerupRemote.SendToPlayer(player);
 				break;
 			case Powerups.Slowdown:
-				// Implement the effect of the Slowdown powerup
+				this.sendSlowdown.SendToAllPlayersExcept(player, 3);
+				gamePlayer.removePowerup(powerup);
+				this.playerUsedPowerupRemote.SendToPlayer(player);
 				break;
 			case Powerups.Teleport:
 				const character = player.Character;
@@ -684,14 +737,29 @@ export class GameManager {
 				if (character && character.PrimaryPart) {
 					character.MoveTo(randomLocation);
 				}
+				gamePlayer.removePowerup(powerup);
+				this.playerUsedPowerupRemote.SendToPlayer(player);
 				break;
 			case Powerups.Earthquake:
 				this.grid.makeRandomTileFall();
 				gamePlayer.removePowerup(powerup);
+				this.playerUsedPowerupRemote.SendToPlayer(player);
 				break;
 			case Powerups.Health:
 				gamePlayer.setHealth(gamePlayer.getHealth() + 1);
 				gamePlayer.removePowerup(powerup);
+				this.playerUsedPowerupRemote.SendToPlayer(player);
+				this.broadcastPlayerHealthUpdate();
+				break;
+			case Powerups.Dizzy:
+				this.sendDizzy.SendToAllPlayersExcept(player, 10);
+				gamePlayer.removePowerup(powerup);
+				this.playerUsedPowerupRemote.SendToPlayer(player);
+				break;
+			case Powerups.DisableAttack:
+				this.disableAttack.SendToAllPlayersExcept(player, 5);
+				gamePlayer.removePowerup(powerup);
+				this.playerUsedPowerupRemote.SendToPlayer(player);
 				break;
 			default:
 				warn(`Unknown powerup: ${powerup}`);
@@ -700,4 +768,26 @@ export class GameManager {
 
 		this.grid?.spawnPowerupOnTile();
 	};
+
+	private broadcastPlayerReadyUpdate(): void {
+		if (this.state !== GameState.Lobby) return;
+
+		const playerData: PlayerReadyData[] = this.players.map((player) => ({
+			userId: player.getPlayer().UserId,
+			displayName: player.getPlayer().DisplayName,
+			isReady: player.getReady(),
+		}));
+
+		this.playerReadyUpdateRemote.SendToAllPlayers(playerData);
+	}
+
+	private broadcastPlayerHealthUpdate(): void {
+		const healthData: PlayerHealth[] = this.players.map((player) => ({
+			userId: player.getPlayer().UserId,
+			displayName: player.getPlayer().DisplayName,
+			health: player.getHealth(),
+		}));
+
+		this.playerHealthUpdateRemote.SendToAllPlayers(healthData);
+	}
 }

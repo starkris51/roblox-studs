@@ -1,7 +1,7 @@
 import Net, { Definitions } from "@rbxts/net";
 import { Powerups } from "shared/enums/game";
 import { MapType } from "shared/enums/grid";
-import { GameResultEntry } from "shared/types/game";
+import { GameResultEntry, PlayerHealth, PlayerReadyData } from "shared/types/game";
 
 const Remotes = Net.CreateDefinitions({
 	Timer: Definitions.Namespace({
@@ -19,6 +19,12 @@ const Remotes = Net.CreateDefinitions({
 		End: Definitions.ServerToClientEvent<[results: GameResultEntry[]]>(),
 		PlayerJoined: Definitions.ServerToClientEvent<[playerName: string]>(),
 		PlayerLeft: Definitions.ServerToClientEvent<[playerName: string]>(),
+	}),
+
+	UI: Definitions.Namespace({
+		PlayerReadyUpdate: Definitions.ServerToClientEvent<[playerData: PlayerReadyData[]]>(),
+		PlayerHealthUpdate: Definitions.ServerToClientEvent<[playerHealth: PlayerHealth[]]>(),
+		ShowResults: Definitions.ServerToClientEvent<[results: GameResultEntry[]]>(),
 	}),
 
 	Camera: Definitions.Namespace({

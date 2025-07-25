@@ -1,6 +1,7 @@
 import { Powerups } from "shared/enums/game";
 import { PlayerGameState, PlayerState } from "shared/enums/player";
 import { GridPosition } from "shared/types/grid";
+import ServerRemotes from "shared/remotes/server";
 
 export class GamePlayer {
 	private player: Player;
@@ -12,6 +13,7 @@ export class GamePlayer {
 	private range: number = 8;
 	private powerups: Powerups[] = [];
 	private currentDirection: Vector3 = new Vector3(0, 0, -1);
+	private kills: number = 0;
 
 	constructor(player: Player) {
 		this.player = player;
@@ -92,6 +94,14 @@ export class GamePlayer {
 		const roundedX = math.abs(lookVector.X) > math.abs(lookVector.Z) ? (lookVector.X > 0 ? 1 : -1) : 0;
 		const roundedZ = math.abs(lookVector.Z) > math.abs(lookVector.X) ? (lookVector.Z > 0 ? 1 : -1) : 0;
 
+		print(`Character direction: ${lookVector}, Rounded: (${roundedX}, ${roundedZ})`);
+
 		return new Vector3(roundedX, 0, roundedZ);
+	}
+	public setKills(kills: number): void {
+		this.kills = kills;
+	}
+	public getKills(): number {
+		return this.kills;
 	}
 }

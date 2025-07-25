@@ -1,4 +1,4 @@
-import { Players, ReplicatedStorage, TweenService, Workspace } from "@rbxts/services";
+import { Players, ReplicatedStorage, TweenService, Workspace, RunService } from "@rbxts/services";
 import { MapType, TileState } from "shared/enums/grid";
 import { GridPosition, TilePartConfig, Tile } from "shared/types/grid";
 import { tilePositionToVector3, vector3ToTilePosition } from "shared/utils/convert";
@@ -12,9 +12,12 @@ export class Grid {
 	private map: MapType;
 	private collisionBlocks: Part[] = [];
 	private activeFallingTiles: Set<Tile> = new Set();
+	private powerupSpawnTimer?: RBXScriptConnection;
+	private powerupSpawnDelay: number = 0;
 	private seed = 0;
 	private onTileFell: (tile: Tile) => void;
 	private getPowerup: (player: Player) => void;
+	private gridFolder: Folder;
 
 	constructor(
 		width: number,
@@ -30,6 +33,14 @@ export class Grid {
 		this.tiles = [];
 		this.config = config;
 		this.map = map;
+		this.onTileFell = onTileFell;
+		this.getPowerup = getPowerup;
+
+		// Create dedicated folder for all grid parts
+		this.gridFolder = new Instance("Folder");
+		this.gridFolder.Name = "GridParts";
+		this.gridFolder.Parent = Workspace;
+
 		if (generatedMap) {
 			this.seed = math.random(0, 10000);
 			for (let x = 0; x < width; x++) {
@@ -61,13 +72,10 @@ export class Grid {
 			}
 		}
 
-		this.onTileFell = onTileFell;
-		this.getPowerup = getPowerup;
-
 		for (const column of this.tiles) {
 			for (const tile of column) {
 				if (tile.state === TileState.Active) {
-					tile.part = createTilePart(config, tile);
+					tile.part = createTilePart(config, tile, this.gridFolder);
 				} else if (tile.state === TileState.Collision) {
 					tile.part = this.createCollisionBlock(tile.position, config.tileSize);
 				}
@@ -302,11 +310,27 @@ export class Grid {
 	}
 
 	public reset() {
+		if (this.gridFolder) {
+			this.gridFolder.Destroy();
+		}
+
+		// Stop powerup spawning timer
+		if (this.powerupSpawnTimer) {
+			this.powerupSpawnTimer.Disconnect();
+			this.powerupSpawnTimer = undefined;
+		}
+
 		for (const column of this.tiles) {
 			for (const tile of column) {
-				tile.part?.Destroy();
+				tile.part = undefined;
+				tile.powerup = undefined;
 				tile.state = TileState.Active;
 			}
+		}
+
+		for (const activeFallingTiles of this.activeFallingTiles) {
+			activeFallingTiles.state = TileState.Active;
+			activeFallingTiles.part?.Destroy();
 		}
 
 		this.activeFallingTiles = new Set<Tile>();
@@ -314,6 +338,7 @@ export class Grid {
 		for (const block of this.collisionBlocks) {
 			block.Destroy();
 		}
+
 		this.collisionBlocks = [];
 	}
 
@@ -416,6 +441,7 @@ export class Grid {
 	private handlePermanentTileFall(tile: Tile, delay: number) {
 		coroutine.wrap(async () => {
 			wait(delay);
+			changeTileColor(tile.part, new Color3(0.54, 0.54, 0.54));
 			tile.state = TileState.Removed;
 			this.onTileFell(tile);
 			this.createCollisionBlock(tile.position, this.config?.tileSize || 5);
@@ -435,7 +461,7 @@ export class Grid {
 		const basePos = tilePositionToVector3(pos, tileSize);
 		block.Position = new Vector3(basePos.X, basePos.Y + tileSize, basePos.Z); // 1 block higher
 		block.Transparency = 1; // Make it invisible
-		block.Parent = Workspace;
+		block.Parent = this.gridFolder; // Parent to grid folder instead of Workspace
 
 		this.collisionBlocks.push(block);
 
@@ -468,7 +494,7 @@ export class Grid {
 
 		const powerupClone = powerup.Clone();
 		powerupClone.Position = new Vector3(randomTile.X, randomTile.Y + 5, randomTile.Z); // Raise it above the tile
-		powerupClone.Parent = Workspace;
+		powerupClone.Parent = this.gridFolder; // Parent to grid folder instead of Workspace
 
 		tile.powerup = powerupClone;
 
@@ -489,5 +515,32 @@ export class Grid {
 				this.getPowerup(player);
 			}
 		});
+	}
+
+	public startPowerupSpawning(): void {
+		this.stopPowerupSpawning();
+		this.resetPowerupTimer();
+
+		this.powerupSpawnTimer = RunService.Heartbeat.Connect(() => {
+			const [dt] = RunService.Heartbeat.Wait();
+			this.powerupSpawnDelay -= dt;
+
+			if (this.powerupSpawnDelay <= 0) {
+				this.spawnPowerupOnTile();
+				this.resetPowerupTimer();
+			}
+		});
+	}
+
+	public stopPowerupSpawning(): void {
+		if (this.powerupSpawnTimer) {
+			this.powerupSpawnTimer.Disconnect();
+			this.powerupSpawnTimer = undefined;
+		}
+	}
+
+	private resetPowerupTimer(): void {
+		// Random interval between 15-45 seconds
+		this.powerupSpawnDelay = math.random(15, 45);
 	}
 }

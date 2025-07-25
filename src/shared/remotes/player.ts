@@ -9,6 +9,7 @@ const Remotes = Net.CreateDefinitions({
 		PlayerParry: Definitions.ClientToServerEvent<[position: Vector3, direction: Vector3]>(),
 		PlayerUsePowerup: Definitions.ClientToServerEvent<[]>(),
 		PlayerGotPowerup: Definitions.ServerToClientEvent<[powerupType: Powerups]>(),
+		PlayerUsedPowerup: Definitions.ServerToClientEvent<[]>(),
 	}),
 
 	Emotes: Definitions.Namespace({
@@ -28,10 +29,13 @@ const Remotes = Net.CreateDefinitions({
 	}),
 
 	Powerups: Definitions.Namespace({
-		Speed: Definitions.ServerToClientEvent<[]>(),
+		Speed: Definitions.ServerToClientEvent<[time: number]>(),
 		HP: Definitions.ServerToClientEvent<[]>(),
-		Invisible: Definitions.ServerToClientEvent<[]>(),
-		Dizzy: Definitions.ServerToClientEvent<[]>(),
+		Invisible: Definitions.ServerToClientEvent<[time: number]>(),
+		Dizzy: Definitions.ServerToClientEvent<[time: number]>(),
+		Slowdown: Definitions.ServerToClientEvent<[time: number]>(),
+		Shield: Definitions.ServerToClientEvent<[time: number]>(),
+		DisableAttack: Definitions.ServerToClientEvent<[time: number]>(),
 	}),
 });
 

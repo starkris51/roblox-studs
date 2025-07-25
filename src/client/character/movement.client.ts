@@ -31,8 +31,12 @@ const playerAttack = actions.Get("PlayerAttack");
 
 const speedPowerupReceived = powerups.Get("Speed");
 const invisiblePowerupReceived = powerups.Get("Invisible");
+const slowDown = powerups.Get("Slowdown");
+const Dizzy = powerups.Get("Dizzy");
+const shieldReceived = powerups.Get("Shield");
+const disableAttack = powerups.Get("DisableAttack");
 
-const keyDirectionMap: Record<string, Vector3> = {
+let keyDirectionMap: Record<string, Vector3> = {
 	w: new Vector3(0, 0, -1),
 	a: new Vector3(-1, 0, 0),
 	s: new Vector3(0, 0, 1),
@@ -43,9 +47,16 @@ const heldKeys = new Set<string>();
 let currentDirection = new Vector3(0, 0, -1);
 const dashSpeed = 100;
 
+let isDizzy = false;
+let isAttackDisabled = false;
+
 function moveAndFace(direction: Vector3) {
 	currentDirection = direction;
-	rootPart.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position.add(currentDirection));
+
+	const actualMoveDirection = isDizzy ? direction.mul(-1) : direction;
+
+	rootPart.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position.add(actualMoveDirection));
+	humanoid.Move(actualMoveDirection, true);
 }
 
 function onInputBegan(input: InputObject, processed: boolean) {
@@ -54,7 +65,7 @@ function onInputBegan(input: InputObject, processed: boolean) {
 	if (keyDirectionMap[key]) {
 		heldKeys.add(key);
 	}
-	if (input.KeyCode === Enum.KeyCode.Space && !isAttacking) {
+	if (input.KeyCode === Enum.KeyCode.Space && !isAttacking && !isAttackDisabled) {
 		isAttacking = true;
 		humanoid.WalkSpeed = 0; // Stop movement during attack
 		const attackTrack = animationController.play("Attack");
@@ -89,15 +100,15 @@ function onInputBegan(input: InputObject, processed: boolean) {
 			canDash = true;
 		});
 	}
-	if (input.KeyCode === Enum.KeyCode.E) {
-		if (dashing || isAttacking) return;
-		//const parryTrack = animationController.play("Parry");
-		// parryTrack.Stopped.Once(() => {
-		// 	isAttacking = false;
-		// });
-		print("Parry action triggered");
-		playerAttack.SendToServer(rootPart.Position, new Vector3(currentDirection.X, 0, currentDirection.Z));
-	}
+	// if (input.KeyCode === Enum.KeyCode.E) {
+	// 	if (dashing || isAttacking) return;
+	// 	//const parryTrack = animationController.play("Parry");
+	// 	// parryTrack.Stopped.Once(() => {
+	// 	// 	isAttacking = false;
+	// 	// });
+	// 	print("Parry action triggered");
+	// 	playerAttack.SendToServer(rootPart.Position, new Vector3(currentDirection.X, 0, currentDirection.Z));
+	// }
 	if (input.KeyCode === Enum.KeyCode.Q) {
 		if (dashing || isAttacking) return;
 		//const powerupTrack = animationController.play("Powerup");
@@ -127,12 +138,48 @@ function onRenderStepped() {
 	}
 }
 
-speedPowerupReceived.Connect(() => {
+speedPowerupReceived.Connect((time: number) => {
 	humanoid.WalkSpeed += 10;
+	task.delay(time, () => {
+		humanoid.WalkSpeed = MOVE_SPEED;
+	});
 });
 
-invisiblePowerupReceived.Connect(() => {
+invisiblePowerupReceived.Connect((time: number) => {
 	//make character transparent
+});
+
+slowDown.Connect((time: number) => {
+	humanoid.WalkSpeed = MOVE_SPEED / 2;
+	task.delay(time, () => {
+		humanoid.WalkSpeed = MOVE_SPEED;
+	});
+});
+
+// Dizzy effect it should invert the player's controls for a short time
+Dizzy.Connect((time: number) => {
+	isDizzy = true;
+	print(`Dizzy effect started for ${time} seconds`);
+
+	task.delay(time, () => {
+		isDizzy = false;
+		print("Dizzy effect ended");
+	});
+});
+
+shieldReceived.Connect((time: number) => {
+	// Implement shield effect, e.g., visual feedback
+	print(`Shield received for ${time} seconds`);
+	task.delay(time, () => {
+		print("Shield effect ended");
+	});
+});
+
+disableAttack.Connect((time: number) => {
+	isAttackDisabled = true;
+	task.delay(time, () => {
+		isAttackDisabled = false;
+	});
 });
 
 UserInputService.InputBegan.Connect(onInputBegan);

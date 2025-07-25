@@ -1,7 +1,7 @@
 import { TweenService, Workspace } from "@rbxts/services";
 import { Tile, TilePartConfig } from "shared/types/grid";
 
-export function createTilePart(config: TilePartConfig, tile: Tile): Part {
+export function createTilePart(config: TilePartConfig, tile: Tile, parent: Instance): Part {
 	const part = new Instance("Part");
 	part.Size = new Vector3(config.tileSize, config.tileSize, config.tileSize);
 
@@ -14,7 +14,7 @@ export function createTilePart(config: TilePartConfig, tile: Tile): Part {
 	part.Anchored = true;
 	part.CanCollide = true;
 	part.Material = Enum.Material.SmoothPlastic;
-	part.Parent = Workspace;
+	part.Parent = parent || Workspace;
 	part.Position = new Vector3(tile.position.y * config.tileSize, 0, tile.position.x * config.tileSize);
 	return part;
 }
